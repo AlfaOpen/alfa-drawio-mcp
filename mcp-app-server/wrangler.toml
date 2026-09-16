@@ -41,6 +41,10 @@ workers_dev = true
 name = "MCP_SESSION_MANAGER"
 class_name = "MCPSessionManager"
 
+[exports.MyDurableObject]
+type = "durable-object"
+storage = "sqlite"
+
 [[env.staging.migrations]]
 tag = "v1"
 new_classes = ["MCPSessionManager"]
