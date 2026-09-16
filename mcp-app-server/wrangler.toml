@@ -41,7 +41,7 @@ workers_dev = true
 name = "MCP_SESSION_MANAGER"
 class_name = "MCPSessionManager"
 
-[exports.MyDurableObject]
+[exports.MCPSessionManager]
 type = "durable-object"
 storage = "sqlite"
 
