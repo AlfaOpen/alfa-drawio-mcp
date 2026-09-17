@@ -4,12 +4,12 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 # workers.dev name is disabled in CF for production; keep it off
 workers_dev = false
-
+preview_urls = true
 # The dash-managed route only covers mcp.draw.io/mcp* — /carousel/* needs
 # its own route or requests 522 against a nonexistent origin.
 routes = [
-  { pattern = "mcp.draw.io/mcp*", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/carousel/*", zone_name = "draw.io" }
+  { pattern = "mcp.alfameg.org/mcp*", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/carousel/*", zone_name = "alfameg.org" }
 ]
 
 [build]
