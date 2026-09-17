@@ -29,9 +29,8 @@ class_name = "MCPSessionManager"
 # No new migrations needed - MCPSessionManager already exists
 [[migrations]]
 tag = "v3"
-new_classes = ["MCPSessionManager"]
 new_sqlite_classes = ["MCPSessionManager"]
-
+#new_classes = ["MCPSessionManager"]
 
 [env.staging]
 name = "drawio-mcp-app-staging"
