@@ -30,6 +30,8 @@ class_name = "MCPSessionManager"
 [[migrations]]
 tag = "v3"
 new_classes = ["MCPSessionManager"]
+new_sqlite_classes = ["MCPSessionManager"]
+
 
 [env.staging]
 name = "drawio-mcp-app-staging"
@@ -42,13 +44,13 @@ workers_dev = true
 name = "MCP_SESSION_MANAGER"
 class_name = "MCPSessionManager"
 
-[exports.MCPSessionManager]
-type = "durable-object"
-storage = "sqlite"
+#[exports.MCPSessionManager]
+#type = "durable-object"
+#storage = "sqlite"
 
-[[env.staging.migrations]]
-tag = "v1"
-new_classes = ["MCPSessionManager"]
+#[[env.staging.migrations]]
+#tag = "v1"
+#new_classes = ["MCPSessionManager"]
 
 [env.staging.assets]
 directory = "./public"
