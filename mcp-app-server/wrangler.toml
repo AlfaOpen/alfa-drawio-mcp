@@ -48,7 +48,7 @@ storage = "sqlite"
 
 [[env.staging.migrations]]
 tag = "v1"
-new_sqlite_classes = ["MCPSessionManager"]
+new_classes = ["MCPSessionManager"]
 
 [env.staging.assets]
 directory = "./public"
