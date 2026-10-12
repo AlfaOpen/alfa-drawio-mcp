@@ -187,11 +187,11 @@ All four approaches above use this file as their single source of truth for LLM 
 | Approach | How it accesses the reference |
 |----------|-------------------------------|
 | MCP App Server | Reads the file at startup / build time and includes it in the tool description |
-| MCP Tool Server | Reads the file at startup (from repo or bundled copy via `prepack`) and returns it from the `get_drawio_reference` tool |
+| MCP Tool Server | Reads the file at startup (from repo or bundled copy via `prepack`) and returns it from the `get_drawio_reference` tool; the `open_drawio_xml` description carries the condensed [`shared/xml-essentials.md`](shared/xml-essentials.md) |
 | Assistant Plugins (Claude Code, Codex CLI, GitHub Copilot) | Reference the [GitHub raw URL](https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md) |
 | Project Instructions | Users copy its contents into their Claude Project |
 
-When updating XML generation guidance, edit only `shared/xml-reference.md` — changes propagate to all consumers automatically.
+When updating XML generation guidance, edit `shared/xml-reference.md` — changes propagate to all consumers automatically. If the change touches a rule that `shared/xml-essentials.md` summarizes, update that line there too.
 
 ---
 

@@ -65,6 +65,14 @@ test("the diagram tools point at get_drawio_reference", async function()
   assert.match(byName.open_drawio_mermaid.description, /get_drawio_reference with format "mermaid"/);
 });
 
+test("open_drawio_xml inlines the XML essentials", async function()
+{
+  const { tools } = await client.listTools();
+  const xmlTool = tools.find(function(tool) { return tool.name === "open_drawio_xml"; });
+
+  assert.ok(xmlTool.description.includes(readShared("xml-essentials.md").trim()));
+});
+
 test("get_drawio_reference returns the shared references", async function()
 {
   const xml = await client.callTool({ name: "get_drawio_reference", arguments: { format: "xml" } });

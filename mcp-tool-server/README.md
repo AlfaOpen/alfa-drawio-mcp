@@ -209,7 +209,7 @@ Opens the draw.io editor with a Mermaid.js diagram.
 
 ### `get_drawio_reference`
 
-Returns the diagram generation reference the model reads before its first diagram in a format: [`shared/xml-reference.md`](../shared/xml-reference.md) for `open_drawio_xml`, [`shared/mermaid-reference.md`](../shared/mermaid-reference.md) for `open_drawio_mermaid`.
+Returns a full diagram generation reference: [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), which the model reads before its first Mermaid diagram, or [`shared/xml-reference.md`](../shared/xml-reference.md), which `open_drawio_xml` only needs for layers, tags, metadata, tables and dark-mode colors — its description already carries the condensed [`shared/xml-essentials.md`](../shared/xml-essentials.md).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -251,7 +251,7 @@ Page-level access to a local multi-page `.drawio` file, so one page can be inspe
 4. The URL is returned to the LLM, which can present it to the user
 5. Opening the URL loads draw.io with the diagram ready to view/edit
 
-The full XML generation reference (edge routing, containers, layers, tags, metadata, dark mode, etc.) comes from [`shared/xml-reference.md`](../shared/xml-reference.md), the single source of truth for all draw.io MCP prompts, and the Mermaid reference from [`shared/mermaid-reference.md`](../shared/mermaid-reference.md). The model fetches them with `get_drawio_reference`, so the tool descriptions stay short: clients like VS Code Copilot index tool descriptions, and a description carrying a whole reference is too long for them. A `prepack` script bundles both files into the npm package so they work after `npm install`.
+The `open_drawio_xml` description carries the condensed XML rules from [`shared/xml-essentials.md`](../shared/xml-essentials.md) (~1.5k characters). The full XML generation reference (edge routing, containers, layers, tags, metadata, dark mode, etc.) in [`shared/xml-reference.md`](../shared/xml-reference.md), the single source of truth for all draw.io MCP prompts, and the Mermaid reference in [`shared/mermaid-reference.md`](../shared/mermaid-reference.md) are fetched with `get_drawio_reference`. That keeps every tool description short: clients like VS Code Copilot index tool descriptions, and a description carrying a whole reference is too long for them. A `prepack` script bundles the three files into the npm package so they work after `npm install`.
 
 ## Related Resources
 
