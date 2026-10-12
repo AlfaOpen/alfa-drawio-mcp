@@ -89,6 +89,7 @@ Doing it here rather than inside the layout keeps `postLayout` free of hierarchy
 
 - `registerAppTool` `inputSchema` uses Zod shapes (`{ key: z.string() }`), not JSON Schema objects
 - CSP config goes on the **resource contents** `_meta.ui.csp`, not on the tool's `_meta.ui`
+- `resourceDomains` includes `https://fonts.googleapis.com` and `https://fonts.gstatic.com` so Google fonts of `fontSource` styles load in the viewer (the font CSS is linked, it loads the font files) — e.g. the Recursive font of Mermaid 12 diagrams (`redux-color` theme)
 - TypeScript narrowing: use `if (block.type === "text")` before accessing `.text` on content blocks
 
 ## XML and Mermaid References
@@ -104,7 +105,7 @@ For the Cloudflare Worker, both files are pre-built into `generated-html.js` (ex
 
 ## Mermaid Conversion
 
-`convertMermaidToXml()` in `shared.js` is a thin synchronous wrapper around `mxMermaidToDrawio.parseText(text, null, {version: MERMAID_DEFAULTS_VERSION})` exposed by the inlined drawio-mermaid bundle. `MERMAID_DEFAULTS_VERSION` ("12", top of `shared.js`) is also passed by the streaming preview, stored by `wrapGroup` in the mermaidData behind "Open in draw.io" and added to `#create=` links of type `mermaid`, so the preview, the opened diagram and draw.io's re-conversion on edit all use Mermaid 12's defaults (no theme is forced; draw.io adapts the light themes to dark hosts). Version 12 diagrams of the redux themes use the Recursive Google font, which the app's CSP does not allow, so the preview measures and draws those labels in a fallback font. No listener plumbing, no 10 s timeout, no upstream mermaid runtime — `parseText` runs the full parse + layout pipeline and returns draw.io XML directly. The only wait before calling it is `waitForGraphViewer()`, because the cell factory still needs `Graph`, `mxCodec`, and `mxUtils` from `viewer-static.min.js`.
+`convertMermaidToXml()` in `shared.js` is a thin synchronous wrapper around `mxMermaidToDrawio.parseText(text, null, {version: MERMAID_DEFAULTS_VERSION})` exposed by the inlined drawio-mermaid bundle. `MERMAID_DEFAULTS_VERSION` ("12", top of `shared.js`) is also passed by the streaming preview, stored by `wrapGroup` in the mermaidData behind "Open in draw.io" and added to `#create=` links of type `mermaid`, so the preview, the opened diagram and draw.io's re-conversion on edit all use Mermaid 12's defaults (no theme is forced; draw.io adapts the light themes to dark hosts). Version 12 diagrams of the redux themes use the Recursive Google font, which the viewer loads from Google Fonts (both hosts are in the CSP `resourceDomains`, see [MCP Apps SDK Patterns](#mcp-apps-sdk-patterns)). No listener plumbing, no 10 s timeout, no upstream mermaid runtime — `parseText` runs the full parse + layout pipeline and returns draw.io XML directly. The only wait before calling it is `waitForGraphViewer()`, because the cell factory still needs `Graph`, `mxCodec`, and `mxUtils` from `viewer-static.min.js`.
 
 Returns `null` for unsupported diagram types — the wrapper converts that to a rejected promise so the UI surfaces a clear error.
 

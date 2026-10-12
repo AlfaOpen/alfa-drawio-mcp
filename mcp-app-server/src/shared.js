@@ -7091,7 +7091,12 @@ export function createServer(html, options = {})
                 {
                   // icons.diagrams.net: remote icon images referenced by
                   // search_shapes icon-service results (shape=image styles)
-                  resourceDomains: ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net"],
+                  // fonts.googleapis.com / fonts.gstatic.com: Google fonts
+                  // of fontSource styles (the viewer links the font CSS,
+                  // which loads the font files), e.g. Recursive in Mermaid
+                  // 12 diagrams
+                  resourceDomains: ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
+                    "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
                   connectDomains: ["https://viewer.diagrams.net"],
                 },
               },

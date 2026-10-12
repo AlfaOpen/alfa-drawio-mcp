@@ -31,8 +31,9 @@ Hosts that need a public URL (such as Claude.ai or ChatGPT) can reach a local co
 - **Outbound access from the user's browser.** The inline diagram viewer in the chat loads:
   - the draw.io viewer code from `viewer.diagrams.net`
   - shape images from `app.diagrams.net`, and icons from `icons.diagrams.net`, for diagrams that use them
+  - web fonts from `fonts.googleapis.com` and `fonts.gstatic.com`, for diagrams that use them
 
-  These requests fetch code and images only, never diagram content. "Open in draw.io" opens the diagram in the draw.io editor at `app.diagrams.net`; the diagram travels in the part of the link after `#`, which the browser keeps to itself and never sends to the server.
+  These requests fetch code, images and fonts only, never diagram content. "Open in draw.io" opens the diagram in the draw.io editor at `app.diagrams.net`; the diagram travels in the part of the link after `#`, which the browser keeps to itself and never sends to the server.
 
 ## Tags
 
