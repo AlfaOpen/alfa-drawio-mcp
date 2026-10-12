@@ -42,9 +42,9 @@ The official draw.io MCP App server is hosted at:
 https://mcp.draw.io/mcp
 ```
 
-Add this URL as a remote MCP server in Claude.ai, Cursor, or any MCP Apps-compatible host — no installation or setup required.
+Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copilot), Cursor, or any MCP Apps-compatible host — no installation or setup required.
 
-> **Note:** This server renders diagrams **inline** via the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) protocol, so it requires an MCP Apps–capable host (e.g. Claude.ai or Cursor). In hosts that don't support MCP Apps — such as **VS Code / GitHub Copilot** or Claude Code — the tool connects but has nothing to render, so the diagram won't appear. For those clients use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server instead, which opens diagrams in the browser. ChatGPT isn't supported yet: its connectors are remote-only and use OpenAI's own widget format rather than MCP Apps, so the diagram won't render inline — and unlike the editors above, the stdio fallback can't be used.
+> **Note:** Diagrams appear **inline**, right in the chat, in hosts that support [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps): Claude.ai, ChatGPT, VS Code with GitHub Copilot (1.109 or later) and Cursor (2.6 or later). In other hosts, such as Claude Code, the server answers with a link that opens the diagram in draw.io. If you'd rather have diagrams open in your browser automatically, use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server.
 
 ### Using with Cursor
 
@@ -148,7 +148,7 @@ Add to your Claude Desktop config:
 }
 ```
 
-> **Note:** Inline diagram rendering requires an MCP host that supports the MCP Apps extension. In hosts without MCP Apps support, the tool still works but returns the XML as text.
+> **Note:** Diagrams appear inline in hosts that support the MCP Apps extension. In other hosts the tool still works and answers with a link that opens the diagram in draw.io.
 
 ## Deploying to Cloudflare Workers
 

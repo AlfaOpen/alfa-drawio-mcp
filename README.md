@@ -13,7 +13,7 @@ This repository offers four approaches for integrating draw.io with AI assistant
 | **Requires installation** | No (hosted at `mcp.draw.io`) | Yes (npm package) | One-line plugin install (draw.io Desktop only for PNG/SVG/PDF export) | No — just paste instructions |
 | **Supports XML, CSV, Mermaid** | XML only | ✅ All three | XML only (native format) | ✅ All three |
 | **Editable in draw.io** | Via "Open in draw.io" button | ✅ Directly | ✅ Directly | Via link |
-| **Works with** | Claude.ai, VS Code, Cursor, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, OpenCode | Claude.ai (with Projects) |
+| **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, OpenCode | Claude.ai (with Projects) |
 | **Best for** | Inline previews in chat | Local desktop workflows | Local development workflows | Quick setup, no install needed |
 
 ---
@@ -28,7 +28,7 @@ The official hosted endpoint is available at:
 https://mcp.draw.io/mcp
 ```
 
-Add this URL as a remote MCP server in Claude.ai, Cursor, or any MCP Apps-compatible host — no installation required. On Claude.ai, draw.io is also listed in the [connector directory](https://claude.ai/directory/pending-draw-io) and can be added from there in one click. In Cursor (≥ 2.6), diagrams render inline in the Agent chat ([one-click install](https://cursor.com/en/install-mcp?name=drawio&config=eyJ1cmwiOiJodHRwczovL21jcC5kcmF3LmlvL21jcCJ9)); on older builds, use the stdio [`@drawio/mcp`](mcp-tool-server/README.md) tool server instead.
+Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copilot), Cursor, or any MCP Apps-compatible host — no installation required. On Claude.ai, draw.io is also listed in the [connector directory](https://claude.ai/directory/pending-draw-io) and can be added from there in one click. In Cursor (≥ 2.6), diagrams render inline in the Agent chat ([one-click install](https://cursor.com/en/install-mcp?name=drawio&config=eyJ1cmwiOiJodHRwczovL21jcC5kcmF3LmlvL21jcCJ9)); on older builds, use the stdio [`@drawio/mcp`](mcp-tool-server/README.md) tool server instead.
 
 You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](https://hub.docker.com/r/jgraph/drawio-mcp) Docker image, or deploy your own instance to Cloudflare Workers.
 
@@ -39,7 +39,7 @@ You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](htt
 
 **[Full documentation →](mcp-app-server/README.md)**
 
-> **Note:** Inline diagram rendering requires an MCP host that supports the MCP Apps extension. In hosts without MCP Apps support, the tool still works but returns the XML as text.
+> **Note:** Diagrams appear inline in hosts that support the MCP Apps extension, such as Claude.ai, ChatGPT, VS Code with GitHub Copilot and Cursor. In other hosts the tool still works and answers with a link that opens the diagram in draw.io.
 
 ---
 

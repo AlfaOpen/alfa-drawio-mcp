@@ -95,7 +95,9 @@ Add to `.vscode/mcp.json` in your workspace (or run **MCP: Open User Configurati
 
 Then click **Start** above the server entry, **trust** the server when prompted, switch Copilot Chat to **Agent mode**, and make sure the drawio tools are enabled under **Configure Tools** (🔧) in the chat input.
 
-> **Note:** Use this stdio server for VS Code — it opens diagrams in the browser and works with any standard MCP client. The hosted `https://mcp.draw.io/mcp` endpoint is a different server that renders diagrams *inline* via the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) protocol, which Copilot does not yet support. Other clients that use stdio (Windsurf, etc.) use the same config shape as above.
+Other clients that use stdio (Windsurf, etc.) use the same config shape as above.
+
+> **Tip:** VS Code 1.109 and later also supports the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) extension, so the hosted [MCP App Server](../mcp-app-server) at `https://mcp.draw.io/mcp` works in Copilot Chat too, rendering diagrams *inline* in chat instead of opening a browser tab. To use it, replace `command` and `args` above with `"type": "http"` and `"url": "https://mcp.draw.io/mcp"`. Use this stdio server if you prefer diagrams to open in the full draw.io editor.
 
 ### Cursor
 
