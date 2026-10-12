@@ -14,7 +14,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `xml` | string | One of `xml` / `mermaid` | draw.io XML in mxGraphModel format. Mutually exclusive with `mermaid`. |
-| `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (26 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
+| `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (28 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
 | `postLayout` | enum | No | Optional ELK layered-flow pass applied after render. Only value: `"elk"`. Vertex positions are replaced; only edge topology survives. |
 | `direction` | enum | No | XML-only flow direction for `postLayout: "elk"`: `"vertical"` (default) or `"horizontal"`. Ignored for Mermaid (direction comes from the `flowchart TD/LR` code). |
 
@@ -25,6 +25,14 @@ The rendered diagram includes:
 - Layer toggling and lightbox mode
 - "Open in draw.io" button to edit the diagram in the full editor
 - Fullscreen mode
+
+## Tool: `get_drawio_reference`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `format` | enum | Yes | `"xml"` returns [`shared/xml-reference.md`](../shared/xml-reference.md), `"mermaid"` returns [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), verbatim. |
+
+The `create_diagram` description tells the model to call this once per format before its first diagram in a conversation. The references used to be part of that description, which made it about 55,000 characters, too long for clients that index tool descriptions, such as VS Code Copilot's tool search ([#76](https://github.com/jgraph/drawio-mcp/issues/76)).
 
 ## Official Hosted Endpoint
 
@@ -211,14 +219,17 @@ src/
   shared.js          Shared logic: buildHtml(), processAppBundle(), createServer()
   index.js           Node.js entry (Express + stdio transports)
   worker.js          Cloudflare Workers entry (Web Standard fetch handler)
-  build-html.js      Build script: generates generated-html.js + xml reference
-  generated-html.js  (gitignored) Pre-built HTML string + XML reference for the Worker
+  build-html.js      Build script: generates generated-html.js + the references
+  generated-html.js  (gitignored) Pre-built HTML string + references for the Worker
+test/
+  tools.test.js      Tool description length cap + get_drawio_reference (npm test)
 wrangler.toml        Wrangler configuration
 ../shared/
-  xml-reference.md   Shared XML generation reference (single source of truth)
+  xml-reference.md      Shared XML generation reference (single source of truth)
+  mermaid-reference.md  Shared Mermaid syntax reference
 ```
 
-The `create_diagram` tool description is loaded from `shared/xml-reference.md` at startup (Node.js) or pre-built into `generated-html.js` at deploy time (Workers). This file is the single source of truth for XML generation guidance across all four approaches in the repository.
+The references `get_drawio_reference` returns are loaded from `shared/xml-reference.md` and `shared/mermaid-reference.md` at startup (Node.js) or pre-built into `generated-html.js` at deploy time (Workers). These files are the single source of truth for diagram generation guidance across all four approaches in the repository.
 
 ### How the HTML is built
 

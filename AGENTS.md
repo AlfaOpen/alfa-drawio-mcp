@@ -37,6 +37,12 @@ Most subdirectories have their own `AGENTS.md` with implementation details. Ever
 - **Coverage**: ~10,000+ shapes across all draw.io libraries (AWS, Azure, GCP, P&ID, electrical, Cisco, Kubernetes, UML, BPMN, etc.), supplemented live by the draw.io icon service (`icons.diagrams.net` — brand logos and general-purpose concept icons, returned as `shape=image` styles) when the local index has no strong match
 - **Use case**: Call before `create_diagram` only for diagrams needing industry-specific, branded, or pictorial icons (cloud, network, P&ID, electrical, Cisco, Kubernetes, product logos). Skip for standard diagrams (flowcharts, UML, ERD, org charts) that use basic geometric shapes
 
+### `get_drawio_reference`
+
+- **Input**: `{ format: "xml" | "mermaid" }`
+- **Output**: `shared/xml-reference.md` or `shared/mermaid-reference.md`, verbatim
+- **Why a tool**: the `create_diagram` description stays short (the format decision, the XML essentials, and a pointer to this tool) instead of carrying the references. Appended, they made it ~55k characters, and VS Code Copilot's tool search, which embeds descriptions in batches, rejected the whole batch, other servers' tools included ([#76](https://github.com/jgraph/drawio-mcp/issues/76)). `mcp-app-server/test/tools.test.js` caps every description at 2048 characters
+
 ## MCP Tool Server Tools
 
 ### `open_drawio_xml`
@@ -133,12 +139,12 @@ These are the only tools that read/write local files by path; paths must end in 
 
 Two canonical reference files live in `shared/` and feed every delivery mechanism (MCP App Server, MCP Tool Server, Claude Code Plugin, Project Instructions):
 
-- **`shared/xml-reference.md`** — draw.io XML generation reference: styles, edge routing, containers, layers, tags, metadata, dark mode, well-formedness rules. Consumed by `create_diagram` (mcp-app-server) and `open_drawio_xml` (mcp-tool-server).
-- **`shared/mermaid-reference.md`** — Mermaid syntax reference for all 26 supported diagram types (flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, radar, packet, venn, treemap, kanban, zenuml, …) plus flowchart styling (`style`, `classDef`, `linkStyle`) and the ELK layout selector for complex flowcharts. Consumed by `open_drawio_mermaid` (mcp-tool-server) and `create_diagram` (mcp-app-server).
+- **`shared/xml-reference.md`** — draw.io XML generation reference: styles, edge routing, containers, layers, tags, metadata, dark mode, well-formedness rules. Returned by `get_drawio_reference` in both servers, for `create_diagram` (mcp-app-server) and `open_drawio_xml` (mcp-tool-server).
+- **`shared/mermaid-reference.md`** — Mermaid syntax reference for all 28 supported diagram types (flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, radar, packet, venn, treemap, kanban, zenuml, wardley, event modeling, …) plus flowchart styling (`style`, `classDef`, `linkStyle`) and the ELK layout selector for complex flowcharts. Returned by `get_drawio_reference` in both servers, for `open_drawio_mermaid` (mcp-tool-server) and `create_diagram` (mcp-app-server).
 
 `shared/` also holds the shared *logic* both servers run: `shape-search.js` / `icon-search.js` (the `search_shapes` algorithm), `mermaid-elk.js` (the Mermaid ELK layout selector — `withElkLayout` + drawio-dev's diagram-type detection) and the headless mxGraph stack — `mx-model.js` (the slice of mxGraph the passes need, incl. `mxGraphModel.updateEdgeParents`), `mx-xml.js` (mxGraphModel XML ↔ that model, rewriting only what a pass changed) and `normalize-model.js` (the normalization both servers apply to every XML diagram, mirroring the desktop CLI's `--normalize`). The tool server gets its copies through `copy-shared`; the app server imports them directly.
 
-The MCP servers read these files at startup and append them to the relevant tool description. The skill and project instructions reference them via GitHub URL.
+The MCP servers read these files at startup and return them from their `get_drawio_reference` tool; the diagram tools' descriptions stay short and point at it (each server's `test/tools.test.js` caps every description at 2048 characters). The skill and project instructions reference them via GitHub URL.
 
 When updating diagram-generation guidance, edit only these files — changes propagate to all consumers automatically.
 

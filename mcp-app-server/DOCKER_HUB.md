@@ -1,6 +1,6 @@
 # draw.io MCP server
 
-The official [draw.io](https://www.draw.io) MCP server. It gives LLMs two tools: `create_diagram` renders draw.io XML as an interactive diagram inline in chat on MCP Apps hosts (Claude.ai, Cursor and others), with an "Open in draw.io" button, and `search_shapes` finds shapes across the draw.io libraries (AWS, Azure, GCP, Cisco, Kubernetes, P&ID, electrical, BPMN and more).
+The official [draw.io](https://www.draw.io) MCP server. It gives LLMs three tools: `create_diagram` renders draw.io XML as an interactive diagram inline in chat on MCP Apps hosts (Claude.ai, Cursor and others), with an "Open in draw.io" button, `search_shapes` finds shapes across the draw.io libraries (AWS, Azure, GCP, Cisco, Kubernetes, P&ID, electrical, BPMN and more), and `get_drawio_reference` returns the diagram syntax reference the model reads before its first diagram.
 
 This image runs the same server that is hosted at `https://mcp.draw.io/mcp`. Use it when you want to self-host, for example to keep diagram data inside your own network.
 

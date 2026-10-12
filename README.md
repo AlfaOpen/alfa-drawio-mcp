@@ -35,6 +35,7 @@ You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](htt
 **Tools:**
 - **`create_diagram`** — Renders draw.io XML as an interactive diagram inline in chat
 - **`search_shapes`** — Searches 10,000+ shapes across all draw.io libraries (AWS, Azure, GCP, P&ID, electrical, Cisco, Kubernetes, UML, BPMN, etc.) by keyword, supplemented by the draw.io icon service (brand logos and general-purpose concept icons) when the built-in libraries have no good match. Returns exact style strings that can be used directly in XML. Use this to find the correct shape before calling `create_diagram`.
+- **`get_drawio_reference`** — Returns the XML or Mermaid generation reference, which the model reads once per format before its first diagram.
 
 **[Full documentation →](mcp-app-server/README.md)**
 
@@ -186,8 +187,8 @@ All four approaches above use this file as their single source of truth for LLM 
 
 | Approach | How it accesses the reference |
 |----------|-------------------------------|
-| MCP App Server | Reads the file at startup / build time and includes it in the tool description |
-| MCP Tool Server | Reads the file at startup (from repo or bundled copy via `prepack`) |
+| MCP App Server | Reads the file at startup / build time and returns it from the `get_drawio_reference` tool |
+| MCP Tool Server | Reads the file at startup (from repo or bundled copy via `prepack`) and returns it from the `get_drawio_reference` tool |
 | Assistant Plugins (Claude Code, Codex CLI, GitHub Copilot) | Reference the [GitHub raw URL](https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md) |
 | Project Instructions | Users copy its contents into their Claude Project |
 
