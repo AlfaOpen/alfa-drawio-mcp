@@ -188,7 +188,7 @@ All four approaches above use this file as their single source of truth for LLM 
 |----------|-------------------------------|
 | MCP App Server | Reads the file at startup / build time and includes it in the tool description |
 | MCP Tool Server | Reads the file at startup (from repo or bundled copy via `prepack`) and returns it from the `get_drawio_reference` tool; the `open_drawio_xml` description carries the condensed [`shared/xml-essentials.md`](shared/xml-essentials.md) |
-| Assistant Plugins (Claude Code, Codex CLI, GitHub Copilot) | Fetch the condensed [`shared/xml-essentials.md`](shared/xml-essentials.md) by its GitHub raw URL, and the full reference only for layers, tags, metadata, tables and dark-mode colors |
+| Assistant Plugins (Claude Code, Codex CLI, GitHub Copilot) | Fetch the condensed [`shared/xml-essentials.md`](shared/xml-essentials.md) by its GitHub raw URL, and the full reference only for layers, tags, metadata, tables, cross-functional grids and dark-mode colors |
 | Project Instructions | Users copy the condensed `shared/xml-essentials.md` into their Claude Project, and the full reference only when they need those topics |
 
 When updating XML generation guidance, edit `shared/xml-reference.md` — changes propagate to all consumers automatically. If the change touches a rule that `shared/xml-essentials.md` summarizes, update that line there too.

@@ -439,7 +439,7 @@ fs.writeFileSync(file, xml);
 Before authoring XML, fetch and follow the condensed XML rules — skeleton, vertex and edge templates, labels, shapes, the layout grid, containers, swimlanes and edge styles:
 https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-essentials.md
 
-They cover most diagrams. Only when a diagram needs layers, tags, metadata and placeholders, tables or dark-mode colors, also fetch the full XML reference (it describes the draw.io MCP servers, so where it mentions their `search_shapes` tool or `postLayout` / `routing` options, use the CLI's [`--layout`](#elk-layout-for-xml) here instead):
+They cover most diagrams. Only when a diagram needs layers, tags, metadata and placeholders, tables, cross-functional grids or dark-mode colors, also fetch the full XML reference (it describes the draw.io MCP servers, so where it mentions their `search_shapes` tool or `postLayout` / `routing` options, use the CLI's [`--layout`](#elk-layout-for-xml) here instead):
 https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md
 
 ## Troubleshooting

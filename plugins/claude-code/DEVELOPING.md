@@ -57,7 +57,7 @@ A `.drawio` file is native mxGraphModel XML. The skill produces one two ways: **
 Shared references live at the repo root (single source of truth for all prompts); `SKILL.md` fetches each via its GitHub raw URL so they work after install without copying extra files:
 
 - `shared/xml-essentials.md` — the condensed XML rules (used when authoring XML)
-- `shared/xml-reference.md` — the full XML generation guide (only for layers, tags, metadata, tables, dark-mode colors)
+- `shared/xml-reference.md` — the full XML generation guide (only for layers, tags, metadata, tables, cross-functional grids, dark-mode colors)
 - `shared/mermaid-reference.md` — Mermaid syntax for all supported diagram types (used when authoring Mermaid)
 
 ## Coding Conventions

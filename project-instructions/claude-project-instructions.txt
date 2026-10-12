@@ -120,7 +120,7 @@ print(f"""<!DOCTYPE html>
 For draw.io XML, follow the condensed XML rules (skeleton, vertex and edge templates, labels, shapes, the layout grid, containers, swimlanes, edge styles). Copy the contents of the following file into your Claude Project alongside these instructions:
 https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-essentials.md
 
-Only if you need layers, tags, metadata and placeholders, tables or dark-mode colors, also add the full XML reference. It describes the draw.io MCP servers, so its `search_shapes` tool and `postLayout` / `routing` options don't apply here — place the nodes on the layout grid instead:
+Only if you need layers, tags, metadata and placeholders, tables, cross-functional grids or dark-mode colors, also add the full XML reference. It describes the draw.io MCP servers, so its `search_shapes` tool and `postLayout` / `routing` options don't apply here — place the nodes on the layout grid instead:
 https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-reference.md
 
 ## Format Examples

@@ -60,7 +60,7 @@ Opens draw.io with Mermaid.js syntax. **Recommended default** — handles flowch
 
 ### `get_drawio_reference`
 
-Returns `shared/xml-reference.md` (`format: "xml"`) or `shared/mermaid-reference.md` (`format: "mermaid"`) verbatim. `open_drawio_mermaid` asks the model to call it once before its first Mermaid diagram. `open_drawio_xml` doesn't need it for most diagrams: its description inlines `shared/xml-essentials.md`, the condensed XML reference (tool-neutral — the server appends its own `search_shapes` and `postLayout` / `routing` lines), and points here only for layers, tags, metadata and placeholders, tables and dark-mode colors.
+Returns `shared/xml-reference.md` (`format: "xml"`) or `shared/mermaid-reference.md` (`format: "mermaid"`) verbatim. `open_drawio_mermaid` asks the model to call it once before its first Mermaid diagram. `open_drawio_xml` doesn't need it for most diagrams: its description inlines `shared/xml-essentials.md`, the condensed XML reference (tool-neutral — the server appends its own `search_shapes` and `postLayout` / `routing` lines), and points here only for layers, tags, metadata and placeholders, tables, cross-functional grids and dark-mode colors.
 
 The references used to be appended to those two descriptions, which made them ~35k / 14k characters (the XML one ~16k tokens). Clients index descriptions: VS Code Copilot embeds them in batches for its tool search, and one description over the embedding limit fails the whole batch, so no tool in it can be found, other servers' tools included ([#76](https://github.com/jgraph/drawio-mcp/issues/76)). `test/tools.test.js` runs the server over stdio, fails if any tool description exceeds 2048 characters, and checks that `open_drawio_xml` carries the essentials verbatim.
 

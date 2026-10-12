@@ -396,8 +396,9 @@ const tools =
       "- Set postLayout \"elk\" for flowcharts, process and tree diagrams (ELK places nodes and " +
       "routes edges), or routing \"libavoid\" for hand-placed layouts whose edges would cross " +
       "shapes. Never both.\n\n" +
-      "Only when the diagram needs layers, tags, metadata and placeholders, tables or " +
-      "dark-mode colors, call get_drawio_reference with format \"xml\" for the full reference.",
+      "Only when the diagram needs layers, tags, metadata and placeholders, tables, " +
+      "cross-functional grids or dark-mode colors, call get_drawio_reference with format " +
+      "\"xml\" for the full reference.",
     inputSchema:
     {
       type: "object",
@@ -531,7 +532,7 @@ const tools =
       "flowchart styling and the ELK layout; call it once before the first Mermaid " +
       "diagram in a conversation. Format \"xml\": everything beyond the rules in the " +
       "open_drawio_xml description (layers, tags, metadata and placeholders, tables, " +
-      "dark-mode colors, more styles and examples); only needed when a diagram uses " +
+      "cross-functional grids, dark-mode colors, more styles and examples); only needed when a diagram uses " +
       "those. A reference stays valid for the rest of the conversation.",
     inputSchema:
     {

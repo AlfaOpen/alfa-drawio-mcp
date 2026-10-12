@@ -209,7 +209,7 @@ Opens the draw.io editor with a Mermaid.js diagram.
 
 ### `get_drawio_reference`
 
-Returns a full diagram generation reference: [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), which the model reads before its first Mermaid diagram, or [`shared/xml-reference.md`](../shared/xml-reference.md), which `open_drawio_xml` only needs for layers, tags, metadata, tables and dark-mode colors — its description already carries the condensed [`shared/xml-essentials.md`](../shared/xml-essentials.md).
+Returns a full diagram generation reference: [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), which the model reads before its first Mermaid diagram, or [`shared/xml-reference.md`](../shared/xml-reference.md), which `open_drawio_xml` only needs for layers, tags, metadata, tables, cross-functional grids and dark-mode colors — its description already carries the condensed [`shared/xml-essentials.md`](../shared/xml-essentials.md).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
