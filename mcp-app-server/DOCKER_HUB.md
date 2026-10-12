@@ -28,7 +28,11 @@ Hosts that need a public URL (such as Claude.ai or ChatGPT) can reach a local co
 - **Outbound access from the container.** None is needed for diagrams. Diagram content is never sent anywhere. The shape library is built into the image. The only outbound requests are:
   - `icons.diagrams.net` for `search_shapes`, when the built-in library has no strong match; carries only the search terms. `DRAWIO_ICON_SERVICE_URL=off` disables it.
   - `viewer.diagrams.net`, a version check for the edge-routing code at startup and once a day. It carries no data and times out after 5 seconds, so it is harmless to block.
-- **Outbound access from the user's browser.** The inline diagram viewer in the chat loads the draw.io viewer code from `viewer.diagrams.net`. This fetches application code only, never diagram content.
+- **Outbound access from the user's browser.** The inline diagram viewer in the chat loads:
+  - the draw.io viewer code from `viewer.diagrams.net`
+  - shape images from `app.diagrams.net`, and icons from `icons.diagrams.net`, for diagrams that use them
+
+  These requests fetch code and images only, never diagram content. "Open in draw.io" opens the diagram in the draw.io editor at `app.diagrams.net`; the diagram travels in the part of the link after `#`, which the browser keeps to itself and never sends to the server.
 
 ## Tags
 

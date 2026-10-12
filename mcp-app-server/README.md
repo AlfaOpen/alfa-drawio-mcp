@@ -46,6 +46,31 @@ Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copil
 
 > **Note:** Diagrams appear **inline**, right in the chat, in hosts that support [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps): Claude.ai, ChatGPT, VS Code with GitHub Copilot (1.109 or later) and Cursor (2.6 or later). In other hosts, such as Claude Code, the server answers with a link that opens the diagram in draw.io. If you'd rather have diagrams open in your browser automatically, use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server.
 
+### Using with ChatGPT
+
+1. Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, then **Add custom MCP server**.
+2. Enter a name, for example *draw.io*, and under **Connection** the URL `https://mcp.draw.io/mcp`. The server needs no sign-in, so leave authentication off.
+3. Confirm the warning with **I understand and want to continue**, select **Create as a plugin**, and install it.
+
+In a new conversation, type `@`, pick draw.io, and ask for a diagram. If the option to add a custom MCP server is missing, your workspace admin may have turned it off.
+
+### Using with VS Code
+
+VS Code 1.109 and later shows diagrams inline in GitHub Copilot Chat. Add the server to `.vscode/mcp.json` in your workspace, or run **MCP: Open User Configuration** to add it for every workspace:
+
+```json
+{
+  "servers": {
+    "drawio": {
+      "type": "http",
+      "url": "https://mcp.draw.io/mcp"
+    }
+  }
+}
+```
+
+Click **Start** above the server entry, confirm that you trust the folder if VS Code asks, then ask Copilot Chat in **Agent** mode to create a diagram.
+
 ### Using with Cursor
 
 Cursor supports the MCP Apps extension (Cursor **≥ 2.6**), so diagrams render inline in the Agent chat. On older builds the server still connects, but there's nothing to render inline; use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server instead, which opens diagrams in the browser.
