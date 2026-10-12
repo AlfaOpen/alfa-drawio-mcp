@@ -387,7 +387,7 @@ const tools =
   {
     name: "open_drawio_xml",
     description:
-      "Opens the draw.io editor with a diagram from draw.io XML (mxGraphModel format). " +
+      "Opens the draw.io editor with a diagram from draw.io XML. " +
       "Use it for custom styling, precise positioning and stencil-based diagrams " +
       "(cloud, network, P&ID, UI mockups, floor plans); prefer open_drawio_mermaid " +
       "for flowcharts, sequence, class, ER and the other types Mermaid covers.\n\n" +
