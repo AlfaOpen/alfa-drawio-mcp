@@ -75,15 +75,25 @@ const xmlReference = readFileSync(
   "utf-8"
 );
 
-// Same dual-path lookup for the Mermaid reference. Appended to the
-// open_drawio_mermaid tool description so LLMs get concrete syntax hints
-// for every supported diagram type (28) plus flowchart styling.
+// Same dual-path lookup for the Mermaid reference: concrete syntax hints for
+// every supported diagram type (28) plus flowchart styling.
 const sharedMermaidPath = join(__dirname, "..", "..", "shared", "mermaid-reference.md");
 const localMermaidPath = join(__dirname, "mermaid-reference.md");
 const mermaidReference = readFileSync(
   existsSync(sharedMermaidPath) ? sharedMermaidPath : localMermaidPath,
   "utf-8"
 );
+
+// Both references are served by get_drawio_reference rather than appended to
+// the tool descriptions: at ~35k / 14k characters they made the descriptions
+// too long for clients that index them — VS Code Copilot embeds descriptions
+// in batches for its tool search, and one oversized description fails the
+// whole batch, other servers' tools included (jgraph/drawio-mcp#76).
+const references =
+{
+  xml: xmlReference,
+  mermaid: mermaidReference,
+};
 
 // Shape search. To keep the npm package lean, the ~4.6 MB shape index is NOT
 // bundled — it is fetched from the CDN on first use through the same
@@ -365,10 +375,20 @@ const tools =
   {
     name: "open_drawio_xml",
     description:
-      "Opens the draw.io editor with a diagram from XML content. " +
-      "Use this to view, edit, or create diagrams in draw.io format. " +
-      "The XML should be valid draw.io/mxGraph XML format.\n\n" +
-      xmlReference,
+      "Opens the draw.io editor with a diagram from draw.io XML (mxGraphModel format). " +
+      "Use it for custom styling, precise positioning and stencil-based diagrams " +
+      "(cloud, network, P&ID, UI mockups, floor plans); prefer open_drawio_mermaid " +
+      "for flowcharts, sequence, class, ER and the other types Mermaid covers.\n\n" +
+      "Call get_drawio_reference with format \"xml\" once before your first XML diagram " +
+      "in a conversation: it has the styles, the layout grid, edges, containers, " +
+      "swimlanes, layers, tags, metadata and dark mode.\n\n" +
+      "Essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/>" +
+      "<mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. Every cell has a unique id. " +
+      "Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
+      "Edges: edge=\"1\" with source and target, always with a child " +
+      "<mxGeometry relative=\"1\" as=\"geometry\"/>. Put html=1 in every style and " +
+      "XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
+      "Don't add waypoints: set routing or postLayout instead.",
     inputSchema:
     {
       type: "object",
@@ -451,10 +471,15 @@ const tools =
   {
     name: "open_drawio_mermaid",
     description:
-      "Opens the draw.io editor with a diagram generated from Mermaid.js syntax. " +
-      "Supports flowcharts, sequence diagrams, class diagrams, state diagrams, " +
-      "entity relationship diagrams, and more using Mermaid.js syntax.\n\n" +
-      mermaidReference,
+      "Opens the draw.io editor with a diagram generated from Mermaid.js syntax, " +
+      "converted into an editable draw.io diagram. The recommended default for " +
+      "flowcharts, sequence, class, state and ER diagrams, gantt charts, mind maps, " +
+      "timelines, C4, architecture and the other types draw.io's Mermaid parser " +
+      "supports (28 in all).\n\n" +
+      "Call get_drawio_reference with format \"mermaid\" once before your first " +
+      "Mermaid diagram in a conversation: it lists the header keyword and syntax " +
+      "hints for every supported type (a misspelled header yields a blank " +
+      "diagram) and flowchart styling.",
     inputSchema:
     {
       type: "object",
@@ -487,6 +512,31 @@ const tools =
         },
       },
       required: ["content"],
+    },
+  },
+  {
+    name: "get_drawio_reference",
+    description:
+      "Returns the draw.io diagram generation reference as Markdown. Format \"xml\": " +
+      "styles, the layout grid, edges, containers, swimlanes, layers, tags, metadata, " +
+      "dark mode, the layout and routing passes, and the well-formedness rules for " +
+      "open_drawio_xml. Format \"mermaid\": the header keyword and syntax hints for " +
+      "every Mermaid type draw.io supports, flowchart styling and the ELK layout for " +
+      "open_drawio_mermaid. Call it once per format and conversation, before the first " +
+      "diagram in that format; the reference stays valid for the rest of the conversation.",
+    inputSchema:
+    {
+      type: "object",
+      properties:
+      {
+        format:
+        {
+          type: "string",
+          enum: ["xml", "mermaid"],
+          description: "Which reference to return: \"xml\" for open_drawio_xml, \"mermaid\" for open_drawio_mermaid.",
+        },
+      },
+      required: ["format"],
     },
   },
   {
@@ -636,6 +686,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
   try
   {
+    if (name === "get_drawio_reference")
+    {
+      const format = args?.format;
+
+      if (!Object.hasOwn(references, format))
+      {
+        return {
+          content: [{ type: "text", text: "Error: format must be \"xml\" or \"mermaid\"" }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: references[format] }],
+      };
+    }
+
     if (name === "search_shapes")
     {
       const query = args?.query;

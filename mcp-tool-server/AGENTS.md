@@ -55,6 +55,12 @@ Opens draw.io with Mermaid.js syntax. **Recommended default** — handles flowch
 
 **Mermaid defaults version.** `#create=` links of type `mermaid` carry `version: "12"` (`MERMAID_DEFAULTS_VERSION`): draw.io converts them with Mermaid 12's defaults (ELK layout, `redux-color` theme, `neo` look for flowchart, class, state, ER, requirement, sequence, swimlane, venn, use case and agent flow) and stores the version in the diagram, so it keeps that look on later edits. It matches the app server's `MERMAID_DEFAULTS_VERSION`; older draw.io builds ignore it. Non-flowchart types are left alone and the tool result says so (type detection is `mermaidDiagramType`, a verbatim port of drawio-dev's `getMermaidDiagramType`).
 
+### `get_drawio_reference`
+
+Returns `shared/xml-reference.md` (`format: "xml"`) or `shared/mermaid-reference.md` (`format: "mermaid"`) verbatim. The `open_drawio_xml` and `open_drawio_mermaid` descriptions ask the model to call it once before its first diagram in that format, and carry only a summary plus, for XML, the essentials a diagram can't do without (root cells, vertex/edge geometry, `html=1`, escaping, no comments).
+
+The references used to be appended to those two descriptions, which made them ~35k / 14k characters. Clients index descriptions: VS Code Copilot embeds them in batches for its tool search, and one description over the embedding limit fails the whole batch, so no tool in it can be found, other servers' tools included ([#76](https://github.com/jgraph/drawio-mcp/issues/76)). `test/tools.test.js` runs the server over stdio and fails if any tool description exceeds 2048 characters, so keep reference material in `shared/` and out of the descriptions.
+
 ### `search_shapes`
 
 Searches the draw.io shape library (~10,000 shapes) by keywords and returns matching shapes with their exact `style` strings, dimensions, and titles — for feeding industry-specific icons (AWS, Azure, GCP, Cisco, Kubernetes, P&ID, electrical, BPMN) into `open_drawio_xml`. The algorithm is the shared `buildTagMap`/`searchShapes` (canonical in `shared/shape-search.js`, copied into `src/` by `copy-shared`), identical to the app server's.
@@ -93,7 +99,7 @@ These are the only tools whose arguments touch the local filesystem, so they are
 
 ## XML Reference
 
-The `open_drawio_xml` tool description is loaded at startup from `shared/xml-reference.md` (single source of truth for all prompts). The `copy-shared` script (run on `prestart` and `prepack`) copies it — plus `shared/mermaid-reference.md`, `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, and `shared/normalize-model.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
+`get_drawio_reference` serves `shared/xml-reference.md` and `shared/mermaid-reference.md` (single source of truth for all prompts), read once at startup. The `copy-shared` script (run on `prestart` and `prepack`) copies both — plus `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, and `shared/normalize-model.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
 
 ## Coding Conventions
 
