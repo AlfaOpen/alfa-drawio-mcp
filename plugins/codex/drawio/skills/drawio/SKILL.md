@@ -32,7 +32,7 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
      drawio -x -f xml -o diagram.drawio diagram.mmd
      ```
      Delete the `.mmd` afterward — the `.drawio` is the artifact. draw.io's Mermaid parser has already laid the diagram out, so no `--layout` is needed.
-   - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)). Optionally apply an ELK layout (see [ELK layout for XML](#elk-layout-for-xml)).
+   - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)), then run the [repair pass](#repair-pass) on it. Optionally apply an ELK layout (see [ELK layout for XML](#elk-layout-for-xml)).
 2. **Deliver** (identical for both sources):
    - *(no format)* → keep `diagram.drawio` and open it.
    - **png / svg / pdf** → export from the `.drawio` with embedded XML, then delete the source `.drawio`:
@@ -414,9 +414,32 @@ Every diagram must have this structure:
 
 (The example above uses an XML comment only to point out where cells go — never emit comments in real output; see [XML well-formedness](#critical-xml-well-formedness).)
 
+### Repair pass
+
+Run this right after writing XML to a `.drawio` file, before any layout, export or URL step. It fixes the mechanical slips that make draw.io reject a diagram: text around the diagram (a code fence, a sentence, a stray closing tag), `<` or a stray `&` inside an attribute value (an unescaped HTML label, "R&D", `&nbsp;`), and the default layer written as its own parent (`<mxCell id="1" parent="1"/>`, which hides everything). It changes nothing in a well-formed file, and needs only Node.js (skip it if `node` isn't installed). Replace `DIAGRAM.drawio` with the actual filename:
+
+```bash
+node -e '
+const fs = require("fs");
+const file = process.argv[1];
+let xml = fs.readFileSync(file, "utf8");
+const diagram = xml.match(/<mxfile[\s\S]*?<\/mxfile>|<mxGraphModel[\s\S]*?<\/mxGraphModel>/);
+if (diagram && xml.trim() !== diagram[0]) xml = diagram[0];
+xml = xml.replace(/="([^"]*)"/g, function(m, v)
+{
+  return "=\"" + v.replace(/</g, "&lt;").replace(/&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/g, "&amp;") + "\"";
+});
+xml = xml.replace(/<mxCell id="([^"]+)" parent="\1"\s*\/>/g, "<mxCell id=\"$1\" parent=\"0\"/>");
+fs.writeFileSync(file, xml);
+' "DIAGRAM.drawio"
+```
+
 ## XML reference
 
-For the complete draw.io XML reference including common styles, edge routing, containers, layers, tags, metadata, dark mode colors, and XML well-formedness rules, fetch and follow the instructions at:
+Before authoring XML, fetch and follow the condensed XML rules — skeleton, vertex and edge templates, labels, shapes, the layout grid, containers, swimlanes and edge styles:
+https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-essentials.md
+
+They cover most diagrams. Only when a diagram needs layers, tags, metadata and placeholders, tables or dark-mode colors, also fetch the full XML reference (it describes the draw.io MCP servers, so where it mentions their `search_shapes` tool or `postLayout` / `routing` options, use the CLI's [`--layout`](#elk-layout-for-xml) here instead):
 https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md
 
 ## Troubleshooting

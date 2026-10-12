@@ -11,6 +11,7 @@ The original draw.io MCP server. Opens diagrams directly in the draw.io editor v
 | `src/elk-pass.js` | Server-side ELK layout pass for `open_drawio_xml` (`postLayout: "elk"`) — drives the drawio-elk `ElkLayout` bridge over the model `mx-xml.js` parses. Covered by `test/elk-pass.test.js` |
 | `src/mx-model.js` | Copy of `shared/mx-model.js` (copy-shared): headless mxGraph model — cells, geometry, `getCellStyle`, the ancestry/reparenting methods (`updateEdgeParents`), `normalizeModel`, the `mxPoint`/`mxConstants`/`mxUtils` globals. The slice of mxGraph the drawio-elk bridge and the edge-parent normalization touch, so both run unchanged without a renderer |
 | `src/mx-xml.js` | Copy of `shared/mx-xml.js` (copy-shared): mxGraphModel XML ↔ that model. `transformPages(xml, fn)` parses each page, hands the transform a graph, and writes back ONLY the cells it changed |
+| `src/repair-xml.js` | Copy of `shared/repair-xml.js` (copy-shared): repairs the mechanical slips in LLM XML before anything parses it, and recovers pass options leaked into the XML string. Covered by `test/repair-xml.test.js` |
 | `src/normalize-model.js` | Copy of `shared/normalize-model.js` (copy-shared): the model repairs, driven through `mx-xml.js`. Covered by `test/normalize-model.test.js` |
 | `src/elk-engine.js` | Loads + memoizes the drawio-elk bundle (CDN via `cdn-cache.js`, indirect `eval` into the globals) |
 | `src/cdn-cache.js` | ETag-revalidated per-user disk cache for the three CDN sources (`ROUTING_CORE`, `ELK_BUNDLE`, `SHAPE_INDEX`), atomic single-artifact writes |
@@ -24,6 +25,8 @@ The original draw.io MCP server. Opens diagrams directly in the draw.io editor v
 ### `open_drawio_xml`
 
 Opens draw.io with native XML content. Full control over styling and positioning.
+
+**Repair** runs first, on the raw string (`shared/repair-xml.js`, `repairDiagramXml`). It fixes the mechanical slips that made every broken diagram in the LLM tests (see `get_drawio_reference` below): text around the diagram — mostly a leaked tool-call tag after it, `…</mxGraphModel></content>` — `<` or a stray `&` in an attribute value (an unescaped HTML label, "R&D", `&nbsp;`), and the default layer written as its own parent (`<mxCell id="1" parent="1"/>`, which hides the whole diagram). A model that leaks the tag usually leaks the next argument with it (`</content>\n<parameter name="postLayout">elk`); `leakedArguments` recovers `postLayout`, `direction` and `routing` from that text when the value is one the schema accepts and the argument wasn't passed for real, so the pass the model asked for still runs. A well-formed diagram passes byte-identical; markup too broken to scan safely is left as it was.
 
 **Model normalization** runs on every call, before any other pass (`shared/normalize-model.js`, driving `MxGraph.normalizeModel` in `mx-model.js`). It repairs three mistakes generated XML carries, and nothing else:
 
@@ -57,7 +60,7 @@ Opens draw.io with Mermaid.js syntax. **Recommended default** — handles flowch
 
 ### `get_drawio_reference`
 
-Returns `shared/xml-reference.md` (`format: "xml"`) or `shared/mermaid-reference.md` (`format: "mermaid"`) verbatim. `open_drawio_mermaid` asks the model to call it once before its first Mermaid diagram. `open_drawio_xml` doesn't need it for most diagrams: its description inlines `shared/xml-essentials.md`, the condensed XML reference, and points here only for layers, tags, metadata and placeholders, tables and dark-mode colors.
+Returns `shared/xml-reference.md` (`format: "xml"`) or `shared/mermaid-reference.md` (`format: "mermaid"`) verbatim. `open_drawio_mermaid` asks the model to call it once before its first Mermaid diagram. `open_drawio_xml` doesn't need it for most diagrams: its description inlines `shared/xml-essentials.md`, the condensed XML reference (tool-neutral — the server appends its own `search_shapes` and `postLayout` / `routing` lines), and points here only for layers, tags, metadata and placeholders, tables and dark-mode colors.
 
 The references used to be appended to those two descriptions, which made them ~35k / 14k characters (the XML one ~16k tokens). Clients index descriptions: VS Code Copilot embeds them in batches for its tool search, and one description over the embedding limit fails the whole batch, so no tool in it can be found, other servers' tools included ([#76](https://github.com/jgraph/drawio-mcp/issues/76)). `test/tools.test.js` runs the server over stdio, fails if any tool description exceeds 2048 characters, and checks that `open_drawio_xml` carries the essentials verbatim.
 
@@ -66,7 +69,7 @@ The references used to be appended to those two descriptions, which made them ~3
 - The judge's overall grade barely moved with description size: 35 tokens, the ~900-token essentials and the full ~16k-token reference all averaged about 6/10. The models already know draw.io XML.
 - The structural, server-specific parts did depend on guidance. With a one-line description, nodes ended up inside their swimlanes in 14% of runs, the XML flowchart used `postLayout: "elk"` in 57%, and Lambdas were nested in the VPC in 71%. The essentials reached 100% on all three, and the full reference inlined 82–100% (its key rules sit deep in 34k characters).
 - When a description pointed at `get_drawio_reference`, the models fetched it 88–100% of the time. That roughly doubled the cost per diagram on Sonnet and Opus (the reference stays in context for every later turn) without a measurable quality gain, so the XML pointer is limited to the topics the essentials leave out.
-- 14 of the 15 broken diagrams were mechanical slips, whatever the description: a leaked `</content>` after the XML, and the layer written as `<mxCell id="1" parent="1"/>`.
+- All 15 broken diagrams (3%) were mechanical slips, whatever the description: a leaked `</content>` after the XML (8), the layer written as `<mxCell id="1" parent="1"/>` (6), an unescaped HTML label (1). The repair step fixes all 15 and leaves the other 458 byte-identical. Re-scored with it, the essentials and the full reference both reach 100% valid XML with the same judge grade (6.1/10).
 
 ### `search_shapes`
 
@@ -106,7 +109,7 @@ These are the only tools whose arguments touch the local filesystem, so they are
 
 ## XML Reference
 
-`get_drawio_reference` serves `shared/xml-reference.md` and `shared/mermaid-reference.md` (single source of truth for all prompts), and `open_drawio_xml` inlines `shared/xml-essentials.md`; all three are read once at startup. The `copy-shared` script (run on `prestart` and `prepack`) copies them — plus `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, and `shared/normalize-model.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
+`get_drawio_reference` serves `shared/xml-reference.md` and `shared/mermaid-reference.md` (single source of truth for all prompts), and `open_drawio_xml` inlines `shared/xml-essentials.md`; all three are read once at startup. The `copy-shared` script (run on `prestart` and `prepack`) copies them — plus `shared/repair-xml.js`, `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, and `shared/normalize-model.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
 
 ## Coding Conventions
 

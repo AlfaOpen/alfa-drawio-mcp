@@ -190,6 +190,23 @@ function loadNormalize()
   return normalizePromise;
 }
 
+// shared/repair-xml.js (the mechanical slips LLMs make in XML: text around the
+// diagram, `<` or a stray `&` in attribute values, a layer that is its own
+// parent), copied into src/ by copy-shared — same import. Memoized; pure
+// string helpers, no I/O.
+let repairPromise = null;
+
+function loadRepair()
+{
+  if (!repairPromise)
+  {
+    repairPromise = import("./repair-xml.js")
+      .catch(function() { return import("../../shared/repair-xml.js"); });
+  }
+
+  return repairPromise;
+}
+
 // shared/mermaid-elk.js (the Mermaid ELK layout selector), copied into src/ by
 // copy-shared like the search helpers — same local-copy-then-repo import so an
 // in-repo run works without the copy. Memoized; pure string helpers, no I/O.
@@ -374,7 +391,11 @@ const tools =
       "Use it for custom styling, precise positioning and stencil-based diagrams " +
       "(cloud, network, P&ID, UI mockups, floor plans); prefer open_drawio_mermaid " +
       "for flowcharts, sequence, class, ER and the other types Mermaid covers.\n\n" +
-      xmlEssentials + "\n\n" +
+      xmlEssentials + "\n" +
+      "- Cloud/network/P&ID icons or logos: call search_shapes, use its style.\n" +
+      "- Set postLayout \"elk\" for flowcharts, process and tree diagrams (ELK places nodes and " +
+      "routes edges), or routing \"libavoid\" for hand-placed layouts whose edges would cross " +
+      "shapes. Never both.\n\n" +
       "Only when the diagram needs layers, tags, metadata and placeholders, tables or " +
       "dark-mode colors, call get_drawio_reference with format \"xml\" for the full reference.",
     inputSchema:
@@ -608,6 +629,16 @@ const tools =
     },
   },
 ];
+
+// The values open_drawio_xml accepts for its pass options, from its schema —
+// the only arguments recovered when a model writes them into the XML string.
+const xmlToolProperties = tools.find(function(tool) { return tool.name === "open_drawio_xml"; }).inputSchema.properties;
+const XML_OPTION_VALUES =
+{
+  postLayout: xmlToolProperties.postLayout.enum,
+  direction: xmlToolProperties.direction.enum,
+  routing: xmlToolProperties.routing.enum,
+};
 
 // search_shapes is always advertised; the index is loaded lazily on first call
 // (local file in-repo, otherwise fetched from the CDN).
@@ -875,6 +906,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
     const notes = [];
 
+    // The XML passes to run: the arguments, plus any the model wrote into the
+    // XML string instead of passing them (see leakedArguments).
+    const xmlOptions =
+    {
+      postLayout: args?.postLayout,
+      direction: args?.direction,
+      routing: args?.routing,
+    };
+
+    // XML: fix the mechanical slips first, so that the normalizer and the
+    // passes get XML they can parse — text around the diagram, `<` or a stray
+    // `&` in attribute values, a layer that is its own parent. Byte-identical
+    // on a well-formed diagram.
+    if (type === "xml")
+    {
+      try
+      {
+        const repair = await loadRepair();
+        const repaired = repair.repairDiagramXml(content);
+        const leaked = repair.leakedArguments(repaired.trailing, XML_OPTION_VALUES);
+
+        content = repaired.xml;
+
+        for (const key of Object.keys(leaked))
+        {
+          if (xmlOptions[key] == null)
+          {
+            xmlOptions[key] = leaked[key];
+          }
+        }
+      }
+      catch (error)
+      {
+        console.error("[repair] skipped: " +
+          (error instanceof Error ? error.message : String(error)));
+      }
+    }
+
     // XML: repair the model before any pass sees it — edges to the nearest
     // common ancestor of their terminals (LLM XML parks them on the layer,
     // which renders fine but lays out wrong, jgraph/drawio-mcp#64), a
@@ -904,11 +973,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
     // edges — the two are alternatives, but running both is harmless (ELK
     // first, then the router over its positions).
 
-    if (type === "xml" && args?.postLayout === "elk")
+    if (type === "xml" && xmlOptions.postLayout === "elk")
     {
       try
       {
-        content = await layoutXml(content, { direction: args?.direction });
+        content = await layoutXml(content, { direction: xmlOptions.direction });
       }
       catch (error)
       {
@@ -921,7 +990,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
       }
     }
 
-    if (type === "xml" && args?.routing === "libavoid")
+    if (type === "xml" && xmlOptions.routing === "libavoid")
     {
       // routeXml never throws - it returns the original XML if routing isn't
       // applicable or anything fails.

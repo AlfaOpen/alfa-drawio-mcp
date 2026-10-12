@@ -120,11 +120,14 @@ behavior is identical.
 
 ## References
 
-The skill fetches two shared guides from GitHub at runtime — the single source of truth for
+The skill fetches shared guides from GitHub at runtime — the single source of truth for
 all draw.io prompts across the repository. No extra files are bundled in the plugin.
 
-- [`shared/xml-reference.md`](../../shared/xml-reference.md) — draw.io XML generation
-  (edge routing, containers, layers, tags, metadata, dark mode, etc.), used when authoring XML
+- [`shared/xml-essentials.md`](../../shared/xml-essentials.md) — the condensed XML rules
+  (skeleton, cell templates, labels, shapes, the layout grid, containers, swimlanes, edge styles),
+  used when authoring XML
+- [`shared/xml-reference.md`](../../shared/xml-reference.md) — the full XML reference, fetched only
+  for layers, tags, metadata, tables and dark-mode colors
 - [`shared/mermaid-reference.md`](../../shared/mermaid-reference.md) — Mermaid syntax for
   all supported diagram types plus flowchart styling, used when authoring Mermaid
 

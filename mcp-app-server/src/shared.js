@@ -12,6 +12,7 @@ import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
 import { withElkLayout, isFlowchartSource } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
+import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -6689,6 +6690,16 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
+// The values create_diagram accepts for its pass options (its inputSchema uses
+// them) — also the only arguments recovered when a model writes them into the
+// XML string (leakedArguments).
+var XML_OPTION_VALUES =
+{
+  postLayout: ["elk"],
+  direction: ["vertical", "horizontal"],
+  routing: ["libavoid"],
+};
+
 /**
  * Create a new MCP server instance with the create_diagram tool + UI resource.
  *
@@ -6799,7 +6810,7 @@ export function createServer(html, options = {})
             "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 26 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
           ),
         postLayout: z
-          .enum(["elk"])
+          .enum(XML_OPTION_VALUES.postLayout)
           .optional()
           .describe(
             "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for directional/hierarchical diagrams: flowcharts, process diagrams, state diagrams, decision flows, pipelines, ER/class diagrams with clear parent→child direction. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
@@ -6807,13 +6818,13 @@ export function createServer(html, options = {})
             "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
           ),
         direction: z
-          .enum(["vertical", "horizontal"])
+          .enum(XML_OPTION_VALUES.direction)
           .optional()
           .describe(
             "**XML only** — the flow direction for `postLayout: \"elk\"` on XML diagrams: `vertical` (top-down) or `horizontal` (left-to-right). Defaults to `vertical`. **Ignored for Mermaid**, where direction is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`). Only meaningful together with `postLayout: \"elk\"`."
           ),
         routing: z
-          .enum(["libavoid"])
+          .enum(XML_OPTION_VALUES.routing)
           .optional()
           .describe(
             "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes each edge's path so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them. Set it for XML diagrams where you have placed nodes deliberately (architecture, network topology, deployment, swimlanes, UML, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
@@ -6873,6 +6884,20 @@ export function createServer(html, options = {})
           isError: true,
         };
       }
+
+      // Fix the mechanical slips first, so that the normalizer, the viewer and
+      // the passes get XML they can parse: text around the diagram (a leaked
+      // tool-call tag after it), `<` or a stray `&` in attribute values, a
+      // layer that is its own parent. Pass options the model wrote into the
+      // XML string instead of passing them are recovered, if valid.
+      // Byte-identical on a well-formed diagram (shared/repair-xml.js).
+      var repaired = repairDiagramXml(normalizedXml);
+      var leaked = leakedArguments(repaired.trailing, XML_OPTION_VALUES);
+
+      normalizedXml = repaired.xml;
+      postLayout = postLayout || leaked.postLayout;
+      direction = direction || leaked.direction;
+      routing = routing || leaked.routing;
 
       // Repair the model before the payload goes anywhere: edges to the
       // nearest common ancestor of their terminals (LLM XML parks them on the

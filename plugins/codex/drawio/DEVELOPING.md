@@ -43,11 +43,12 @@ plugins/codex/          ← host group directory
 
 ## References (fetched, not bundled)
 
-Like the Claude plugin, `SKILL.md` fetches the two shared guides via their GitHub raw URLs at
+Like the Claude plugin, `SKILL.md` fetches the shared guides via their GitHub raw URLs at
 runtime — the single source of truth for all draw.io prompts — so nothing is duplicated in
 the plugin:
 
-- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md`
+- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-essentials.md`
+- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md` (only for advanced topics)
 - `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/mermaid-reference.md`
 
 When updating diagram-generation guidance, edit only the files under `shared/` — changes
