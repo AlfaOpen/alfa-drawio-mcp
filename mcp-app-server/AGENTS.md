@@ -77,11 +77,13 @@ Everything else is passed on with `fetch(request)` and reaches the Worker unchan
 
 **Keeping it exact:** the snippet must answer exactly as the Worker would. `test/edge-snippet.test.js` holds the Worker's recorded replies, checks the pass-through cases, and fails when the SDK's `SUPPORTED_PROTOCOL_VERSIONS` no longer matches the snippet's copy. `EDGE_COMPARE_URL=<worker origin> npm test` also compares every answered case live. Run it against staging after an SDK update or a change to `worker.js`'s trivial paths (CORS headers, GET/DELETE handling), and redeploy the snippet when they change.
 
-**Rule** (snippet rules API: `PUT /zones/{zone}/snippets/snippet_rules` **replaces all rules in the zone**, so GET them first and send them back with this one added):
+**Rule:**
 
 ```
 http.host eq "mcp.draw.io" and (http.request.uri.path eq "/mcp" or starts_with(http.request.uri.path, "/.well-known/oauth-") or starts_with(http.request.uri.path, "/.well-known/openid-configuration") or starts_with(http.request.uri.path, "/mcp/.well-known/"))
 ```
+
+**The zone's snippet rules belong to drawio-dev.** `src/main/server/cf/cf-snippets/rules/draw.io.json` there is the `draw.io` zone's complete rule list, and every draw.io production deploy (`cf-deploy.yml`) replaces the zone's rules with it. It lists this rule since drawio-dev `970f312abc`; before that, the 32.5.1 deploy (2026-10-13 14:47 UTC) deleted it and the Worker took all the traffic again until it was restored at 16:32. So change the rule in that file as well as on the zone. The code is not in drawio-dev (no `cf-snippets/mcp_edge/`, so its deploy skips it): deploy it from here, `cf snippets update mcp_edge --zone <zone id> --file snippet/mcp_edge.js --metadata '{"main_module":"mcp_edge.js"}'`. Updating rules on the zone by hand (`PUT /zones/{zone}/snippets/snippet_rules`, which **replaces all rules in the zone**): GET them first and send them all back.
 
 **Rollout:** deploy with ` and any(http.request.headers["x-drawio-mcp-edge-test"][*] eq "1")` appended to the rule, so only requests carrying that header reach the snippet. Check them against production (the `x-drawio-mcp-edge` header shows which side answered), then drop the condition. **Rollback:** disable or remove the rule, which takes effect at once. Snippets have no logs: watch the Worker's daily requests in `workersInvocationsAdaptive` (GraphQL) drop instead.
 
