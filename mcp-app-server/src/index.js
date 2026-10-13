@@ -74,7 +74,9 @@ var elkJs = null;
 if (process.env.ELK_PATH)
 {
   elkJs = processElkBundle(fs.readFileSync(path.resolve(process.env.ELK_PATH), "utf-8"));
-  console.log("Inlining local drawio-elk from", process.env.ELK_PATH);
+  // Startup messages go to stderr: with --stdio, stdout is the JSON-RPC
+  // stream, and a line that isn't a message breaks strict clients.
+  console.error("Inlining local drawio-elk from", process.env.ELK_PATH);
 }
 
 var mermaidJs = null;
@@ -82,7 +84,7 @@ var mermaidJs = null;
 if (process.env.MERMAID_PATH)
 {
   mermaidJs = processMermaidBundle(fs.readFileSync(path.resolve(process.env.MERMAID_PATH), "utf-8"));
-  console.log("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
+  console.error("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
 }
 
 // libavoid (obstacle-avoiding edge router, powers the routing: "libavoid"
@@ -121,12 +123,12 @@ if (process.env.VIEWER_PATH)
       viewerJs += "\n" + fs.readFileSync(gvJs, "utf-8");
     }
 
-    console.log("Using local viewer from", viewerPath);
+    console.error("Using local viewer from", viewerPath);
   }
   else
   {
     viewerJs = fs.readFileSync(viewerPath, "utf-8");
-    console.log("Using local viewer from", viewerPath);
+    console.error("Using local viewer from", viewerPath);
   }
 }
 
@@ -151,7 +153,7 @@ var shapeIndex = null;
 if (fs.existsSync(shapeIndexPath))
 {
   shapeIndex = JSON.parse(fs.readFileSync(shapeIndexPath, "utf-8"));
-  console.log("Shape index: " + shapeIndex.length + " shapes");
+  console.error("Shape index: " + shapeIndex.length + " shapes");
 }
 
 // Icon service supplementing sparse search_shapes results. Override with
