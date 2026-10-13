@@ -1377,21 +1377,22 @@ function convertMermaidToXml(mermaidText)
   }
 }
 
-// Opens the diagram as a #R link (the compressed XML itself) rather than
-// #create={...}. After a #create, draw.io rewrites the hash in its own
-// encoding; a host that re-encodes the link on the way to the browser (VS Code
-// opens it as encodeURI(uri.toString(true)), leaving ':' ',' '+' '/' '='
-// unescaped) makes that rewrite differ from the loaded hash, so draw.io's
-// hashchange handler takes it for a new diagram and asks "All changes will be
-// lost!". draw.io never rewrites a #R hash, and base64 survives the
-// re-encoding unchanged. The cost: #create's "pop" effect.
+// Opens the diagram as #create={...} for its "pop" effect: the cells animate
+// in as draw.io creates the diagram. #R (the raw compressed XML) opens without
+// it and stays for the plain links (the fallback for clients without the app,
+// the tool server). Up to draw.io 32.4.5, a #create link that a host
+// re-encodes on the way to the browser (VS Code: encodeURI(uri.toString(true)),
+// leaving ':' ',' '+' '/' '=' unescaped) made draw.io ask "All changes will be
+// lost!"; the next draw.io release fixes that (drawio-dev 5170e37146,
+// 6ee7e71444).
 function generateDrawioEditUrl(xml)
 {
   var encoded = encodeURIComponent(xml);
   var compressed = pako.deflateRaw(encoded);
   var base64 = btoa(Array.from(compressed, function(b) { return String.fromCharCode(b); }).join(""));
+  var createObj = { type: "xml", compressed: true, data: base64, effect: "pop" };
 
-  return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
+  return "https://app.diagrams.net/?pv=0&grid=0#create=" + encodeURIComponent(JSON.stringify(createObj));
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -6639,10 +6640,12 @@ function getTagMap(shapeIndex)
 
 /**
  * A draw.io editor URL carrying the whole diagram in its fragment, in the
- * formats the mcp-tool-server hands back: XML as a #R link, like the app's
- * "Open in draw.io" button (see generateDrawioEditUrl for why not #create),
- * Mermaid as #create={type:"mermaid"}. The fragment never leaves the browser,
- * so the diagram isn't sent anywhere by opening it.
+ * formats the mcp-tool-server hands back: XML as a raw #R link (no "pop"
+ * effect, unlike the app's "Open in draw.io" button, see
+ * generateDrawioEditUrl), Mermaid as #create={type:"mermaid"}, which draw.io
+ * converts, since without the app nothing has converted it to XML. The
+ * fragment never leaves the browser, so the diagram isn't sent anywhere by
+ * opening it.
  *
  * @param {string} data - draw.io XML, or Mermaid source for type "mermaid"
  *   (the editor converts and lays that out itself).

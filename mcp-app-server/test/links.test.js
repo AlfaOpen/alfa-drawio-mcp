@@ -1,15 +1,15 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import pako from "pako";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../src/shared.js";
 
-// The link create_diagram hands a client that doesn't render the app. XML
-// opens as #R, like the viewer's "Open in draw.io": after a #create, draw.io
-// rewrites the hash and, when the rewrite differs from the link (a host that
-// re-encodes it, like VS Code), asks "All changes will be lost!"; it never
-// rewrites a #R hash. Mermaid stays #create, which draw.io converts.
+// The links to the draw.io editor. The link create_diagram hands a client that
+// doesn't render the app opens XML as a raw #R link and Mermaid as #create,
+// which draw.io converts. The viewer's "Open in draw.io" button opens its XML
+// as #create with the "pop" effect, which animates the diagram in.
 
 const xml = '<mxGraphModel adaptiveColors="auto"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
   '<mxCell id="a" value="R&amp;D: 100% (x+y)" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">' +
@@ -72,4 +72,28 @@ test("a Mermaid diagram gets a #create link", async function()
 
   assert.equal(createObj.type, "mermaid");
   assert.equal(decompress(createObj.data), mermaid);
+});
+
+test("the viewer's Open in draw.io button gets a #create link with the pop effect", function()
+{
+  // The button's code runs in the app's HTML, so it is taken from the source
+  // of the template and run with the same pako.
+  const source = readFileSync(new URL("../src/shared.js", import.meta.url), "utf-8");
+  const fn = source.match(/\nfunction generateDrawioEditUrl\(xml\)\n\{\n[\s\S]*?\n\}\n/);
+
+  assert.ok(fn, "generateDrawioEditUrl not found in src/shared.js");
+
+  const generateDrawioEditUrl = new Function("pako", fn[0] + "\nreturn generateDrawioEditUrl;")(pako);
+  const url = new URL(generateDrawioEditUrl(xml));
+
+  assert.equal(url.searchParams.get("pv"), "0");
+  assert.equal(url.searchParams.get("grid"), "0");
+  assert.ok(url.hash.startsWith("#create="), url.hash.substring(0, 20));
+
+  const createObj = JSON.parse(decodeURIComponent(url.hash.substring("#create=".length)));
+
+  assert.equal(createObj.type, "xml");
+  assert.equal(createObj.compressed, true);
+  assert.equal(createObj.effect, "pop");
+  assert.equal(decompress(createObj.data), xml);
 });

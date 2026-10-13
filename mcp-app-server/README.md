@@ -261,7 +261,7 @@ The references `get_drawio_reference` returns are loaded from `shared/xml-refere
 The server inlines two bundles into a self-contained HTML string:
 
 - **`app-with-deps.js`** (~319 KB) — MCP Apps SDK browser bundle from `@modelcontextprotocol/ext-apps`. The bundle is ESM (ends with `export { ... as App }`), so the server strips the export statement and creates a local `var App = <minifiedName>` alias. This makes it safe to inline in a plain `<script>` tag inside the sandboxed iframe.
-- **`pako_deflate.min.js`** (~28 KB) — for compressing XML into the "Open in draw.io" `#R` link.
+- **`pako_deflate.min.js`** (~28 KB) — for compressing XML into the "Open in draw.io" `#create=` link.
 
 Both are inlined into the HTML served via `registerAppResource`. The draw.io viewer (`viewer-static.min.js`) is loaded from CDN at runtime.
 
