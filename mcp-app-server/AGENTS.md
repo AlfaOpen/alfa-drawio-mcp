@@ -45,7 +45,7 @@ For local dev, set `VIEWER_PATH` / `ELK_PATH` / `MERMAID_PATH` to a built bundle
 |---|---|---|
 | **Transport** | `StreamableHTTPServerTransport` (Express) | `WebStandardStreamableHTTPServerTransport` |
 | **HTML build** | Reads bundles from `node_modules` + `vendor/` at startup | Pre-built via `build-html.js` → `generated-html.js` |
-| **Session management** | In-memory Map (process-scoped) | None — a server per request; the session's one bit of state rides in its id |
+| **Session management** | None — a server per request; the session's one bit of state rides in its id, the resource flag sits in an in-memory Map | None — a server per request; the session's one bit of state rides in its id |
 
 ### Cloudflare Workers Architecture
 
@@ -75,7 +75,7 @@ The Worker serves `/mcp` **statelessly**: every request gets its own `createServ
 
 `create_diagram` appends a second text block carrying an `app.diagrams.net/?pv=0&grid=0` URL (`#R` with the XML, like "Open in draw.io" below; `#create=` with the source for Mermaid, which draw.io converts) when the connected client doesn't render the app — a plain MCP client (Codex CLI, a terminal agent, a script) otherwise receives the JSON payload and nothing renders the diagram anywhere. Detection is `capabilitiesDeclareUi()` (the `io.modelcontextprotocol/ui` capability from `getUiCapability`, carrying `RESOURCE_MIME_TYPE`) OR `uiResourceRead`, a per-session flag set when the client actually fetches the `ui://` resource — which covers a host that renders through its own negotiation without declaring the capability.
 
-Where the two signals live depends on how long the server instance lives. The Node server keeps one per session, so both sit on the instance. The Worker builds one per request and passes `createServer` a `uiSession`: `declared` comes from the session id minted at `initialize` (`ui-` / `noui-`), and the resource flag from that session's `MCPSessionManager` Durable Object — see [Cloudflare Workers Architecture](#cloudflare-workers-architecture).
+Where the two signals live depends on how long the server instance lives. The stdio server has one instance for the whole session, so both sit on the instance. Both HTTP entries build one per request and pass `createServer` a `uiSession`: `declared` comes from the session id minted at `initialize` (`ui-` / `noui-`), and the resource flag from that session's `MCPSessionManager` Durable Object (Worker — see [Cloudflare Workers Architecture](#cloudflare-workers-architecture)) or an in-memory Map with the same 24 h expiry (Node). The Node HTTP transport stays stateless: `src/index.js` sends the minted id in `Mcp-Session-Id` itself and reads it back from the header. Until 2026-10-13 it minted none, so every Node and Docker client got the link, VS Code (which declares the capability) included.
 
 The block is only ever *appended*: the app reads the FIRST text block (`content.find`), so a host that renders but wasn't detected keeps working, and the wording stays conditional ("if this client doesn't show the diagram inline") so it can't assert something false there. XML goes into the URL as-is, so a requested `postLayout` adds a note saying the link opens the authored coordinates (that pass lives in the app). Mermaid goes in as `type: "mermaid"` and the editor converts + lays it out on open — and a requested `postLayout: "elk"` *does* survive, because it is selected in the source: `withElkLayout` from `shared/mermaid-elk.js` (the canonical copy; the browser-side `withElkRenderer` in the app HTML is the same transform, kept in sync by hand since the self-contained HTML can't import).
 
@@ -97,6 +97,7 @@ Doing it here rather than inside the layout keeps `postLayout` free of hierarchy
 
 - `registerAppTool` `inputSchema` uses Zod shapes (`{ key: z.string() }`), not JSON Schema objects
 - CSP config goes on the **resource contents** `_meta.ui.csp`, not on the tool's `_meta.ui`
+- `resourceDomains` includes `https://fonts.googleapis.com` and `https://fonts.gstatic.com` so Google fonts of `fontSource` styles load in the viewer (the font CSS is linked, it loads the font files) — e.g. the Recursive font of Mermaid 12 diagrams (`redux-color` theme)
 - TypeScript narrowing: use `if (block.type === "text")` before accessing `.text` on content blocks
 
 ## XML and Mermaid References
@@ -112,7 +113,7 @@ For the Cloudflare Worker, both files are pre-built into `generated-html.js` (ex
 
 ## Mermaid Conversion
 
-`convertMermaidToXml()` in `shared.js` is a thin synchronous wrapper around `mxMermaidToDrawio.parseText(text, null, {version: MERMAID_DEFAULTS_VERSION})` exposed by the inlined drawio-mermaid bundle. `MERMAID_DEFAULTS_VERSION` ("12", top of `shared.js`) is also passed by the streaming preview, stored by `wrapGroup` in the mermaidData behind "Open in draw.io" and added to `#create=` links of type `mermaid`, so the preview, the opened diagram and draw.io's re-conversion on edit all use Mermaid 12's defaults (no theme is forced; draw.io adapts the light themes to dark hosts). Version 12 diagrams of the redux themes use the Recursive Google font, which the app's CSP does not allow, so the preview measures and draws those labels in a fallback font. No listener plumbing, no 10 s timeout, no upstream mermaid runtime — `parseText` runs the full parse + layout pipeline and returns draw.io XML directly. The only wait before calling it is `waitForGraphViewer()`, because the cell factory still needs `Graph`, `mxCodec`, and `mxUtils` from `viewer-static.min.js`.
+`convertMermaidToXml()` in `shared.js` is a thin synchronous wrapper around `mxMermaidToDrawio.parseText(text, null, {version: MERMAID_DEFAULTS_VERSION})` exposed by the inlined drawio-mermaid bundle. `MERMAID_DEFAULTS_VERSION` ("12", top of `shared.js`) is also passed by the streaming preview, stored by `wrapGroup` in the mermaidData behind "Open in draw.io" and added to `#create=` links of type `mermaid`, so the preview, the opened diagram and draw.io's re-conversion on edit all use Mermaid 12's defaults (no theme is forced; draw.io adapts the light themes to dark hosts). Version 12 diagrams of the redux themes use the Recursive Google font, which the viewer loads from Google Fonts (both hosts are in the CSP `resourceDomains`, see [MCP Apps SDK Patterns](#mcp-apps-sdk-patterns)). No listener plumbing, no 10 s timeout, no upstream mermaid runtime — `parseText` runs the full parse + layout pipeline and returns draw.io XML directly. The only wait before calling it is `waitForGraphViewer()`, because the cell factory still needs `Graph`, `mxCodec`, and `mxUtils` from `viewer-static.min.js`.
 
 Returns `null` for unsupported diagram types — the wrapper converts that to a rejected promise so the UI surfaces a clear error.
 

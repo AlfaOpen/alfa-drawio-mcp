@@ -3,12 +3,14 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer } from "./shared.js";
+import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, capabilitiesDeclareUi } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
 
@@ -72,7 +74,9 @@ var elkJs = null;
 if (process.env.ELK_PATH)
 {
   elkJs = processElkBundle(fs.readFileSync(path.resolve(process.env.ELK_PATH), "utf-8"));
-  console.log("Inlining local drawio-elk from", process.env.ELK_PATH);
+  // Startup messages go to stderr: with --stdio, stdout is the JSON-RPC
+  // stream, and a line that isn't a message breaks strict clients.
+  console.error("Inlining local drawio-elk from", process.env.ELK_PATH);
 }
 
 var mermaidJs = null;
@@ -80,7 +84,7 @@ var mermaidJs = null;
 if (process.env.MERMAID_PATH)
 {
   mermaidJs = processMermaidBundle(fs.readFileSync(path.resolve(process.env.MERMAID_PATH), "utf-8"));
-  console.log("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
+  console.error("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
 }
 
 // libavoid (obstacle-avoiding edge router, powers the routing: "libavoid"
@@ -119,12 +123,12 @@ if (process.env.VIEWER_PATH)
       viewerJs += "\n" + fs.readFileSync(gvJs, "utf-8");
     }
 
-    console.log("Using local viewer from", viewerPath);
+    console.error("Using local viewer from", viewerPath);
   }
   else
   {
     viewerJs = fs.readFileSync(viewerPath, "utf-8");
-    console.log("Using local viewer from", viewerPath);
+    console.error("Using local viewer from", viewerPath);
   }
 }
 
@@ -149,7 +153,7 @@ var shapeIndex = null;
 if (fs.existsSync(shapeIndexPath))
 {
   shapeIndex = JSON.parse(fs.readFileSync(shapeIndexPath, "utf-8"));
-  console.log("Shape index: " + shapeIndex.length + " shapes");
+  console.error("Shape index: " + shapeIndex.length + " shapes");
 }
 
 // Icon service supplementing sparse search_shapes results. Override with
@@ -163,6 +167,63 @@ const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
   { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls });
+
+// --- Sessions ---
+
+// The HTTP transport is stateless (a server per request), so the server that
+// answers a tools/call never saw the client's initialize. The one thing it
+// needs from it, whether the client declared the MCP Apps UI capability, is
+// written into the session id minted at initialize: the same scheme as the
+// Worker (see mintSessionId in worker.js). Not a credential: a forged id only
+// changes whether that client's create_diagram results get the "open in
+// draw.io" link. An id without either prefix reads as "not declared".
+const UI_SESSION_PREFIX = "ui-";
+const PLAIN_SESSION_PREFIX = "noui-";
+
+// The other "renders the app" signal: sessions whose client fetched the app
+// resource without declaring the capability, mapped to when that expires. A
+// host that renders fetches the resource again whenever it renders, so the
+// flag only has to bridge the gap between two of its calls. In memory, since
+// the process outlives its sessions; a lost entry only appends the link.
+const UI_RESOURCE_FLAG_TTL = 24 * 60 * 60 * 1000;
+const uiResourceReads = new Map();
+
+function mintSessionId(declaresUi)
+{
+  return (declaresUi ? UI_SESSION_PREFIX : PLAIN_SESSION_PREFIX) + randomUUID();
+}
+
+/**
+ * The `uiSession` option of createServer for a session: the declaration from
+ * the id, the resource flag from uiResourceReads.
+ */
+function uiSessionFor(sessionId)
+{
+  return {
+    declared: sessionId.startsWith(UI_SESSION_PREFIX),
+    markResourceRead: async function()
+    {
+      const now = Date.now();
+
+      // Drop expired flags on the way, so the map only holds live sessions
+      for (const [id, expires] of uiResourceReads)
+      {
+        if (expires <= now)
+        {
+          uiResourceReads.delete(id);
+        }
+      }
+
+      uiResourceReads.set(sessionId, now + UI_RESOURCE_FLAG_TTL);
+    },
+    resourceRead: async function()
+    {
+      const expires = uiResourceReads.get(sessionId);
+
+      return expires != null && expires > Date.now();
+    },
+  };
+}
 
 // --- Transport setup ---
 
@@ -228,17 +289,44 @@ async function startStreamableHTTPServer()
   app.all("/mcp", async function(req, res)
   {
     const method = req.body && req.body.method;
-    const sessionId = (req.headers["mcp-session-id"] || "").slice(0, 8);
+    const messages = Array.isArray(req.body) ? req.body : [req.body];
+    const init = req.method === "POST" ? messages.find(isInitializeRequest) : undefined;
+
+    // The session this request belongs to: minted for an initialize and sent
+    // back in Mcp-Session-Id (the stateless transport sends none of its own,
+    // and checks none), taken from the header otherwise.
+    let session = null;
+
+    if (init != null)
+    {
+      session = mintSessionId(capabilitiesDeclareUi(init.params.capabilities));
+      res.setHeader("Mcp-Session-Id", session);
+    }
+    else if (req.headers["mcp-session-id"])
+    {
+      session = req.headers["mcp-session-id"];
+    }
+
+    const sessionLabel = (session || "").slice(0, 13);
     const start = Date.now();
-    console.log(`[req] ${req.method} method=${method || "(none)"} session=${sessionId} accept=${req.headers["accept"] || ""}`);
+    console.log(`[req] ${req.method} method=${method || "(none)"} session=${sessionLabel} accept=${req.headers["accept"] || ""}`);
 
     res.on("finish", function()
     {
       const elapsed = Date.now() - start;
-      console.log(`[res] method=${method || "(none)"} session=${sessionId} status=${res.statusCode} ${elapsed}ms`);
+      console.log(`[res] method=${method || "(none)"} session=${sessionLabel} status=${res.statusCode} ${elapsed}ms`);
     });
 
-    const server = createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId });
+    const server = createServer(html,
+    {
+      domain: process.env.DOMAIN,
+      xmlReference,
+      mermaidReference,
+      shapeIndex,
+      iconServiceUrl,
+      buildId,
+      uiSession: session != null ? uiSessionFor(session) : null,
+    });
 
     const transport = new StreamableHTTPServerTransport(
     {

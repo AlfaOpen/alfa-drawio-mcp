@@ -6774,7 +6774,7 @@ var XML_OPTION_VALUES =
  * @param {Array} [options.shapeIndex] - Shape search index array from search-index.json.
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
- * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (the Cloudflare Worker builds one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize, and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the Node server).
+ * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize, and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
 export function createServer(html, options = {})
@@ -7179,7 +7179,12 @@ export function createServer(html, options = {})
                 {
                   // icons.diagrams.net: remote icon images referenced by
                   // search_shapes icon-service results (shape=image styles)
-                  resourceDomains: ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net"],
+                  // fonts.googleapis.com / fonts.gstatic.com: Google fonts
+                  // of fontSource styles (the viewer links the font CSS,
+                  // which loads the font files), e.g. Recursive in Mermaid
+                  // 12 diagrams
+                  resourceDomains: ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
+                    "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
                   connectDomains: ["https://viewer.diagrams.net"],
                 },
               },
