@@ -65,25 +65,30 @@ Options:
   }
 }
 
-// Read the shared XML reference once at startup (single source of truth).
-// In the repo: read from shared/. When installed via npm: read from the
-// local copy created by the prepack script.
-const sharedPath = join(__dirname, "..", "..", "shared", "xml-reference.md");
-const localPath = join(__dirname, "xml-reference.md");
-const xmlReference = readFileSync(
-  existsSync(sharedPath) ? sharedPath : localPath,
-  "utf-8"
-);
+// Reads a file from shared/ once at startup (single source of truth). In the
+// repo: read from shared/. When installed via npm: read from the local copy
+// created by the prepack script.
+function readShared(name)
+{
+  const sharedFile = join(__dirname, "..", "..", "shared", name);
 
-// Same dual-path lookup for the Mermaid reference. Appended to the
-// open_drawio_mermaid tool description so LLMs get concrete syntax hints
-// for every supported diagram type (28) plus flowchart styling.
-const sharedMermaidPath = join(__dirname, "..", "..", "shared", "mermaid-reference.md");
-const localMermaidPath = join(__dirname, "mermaid-reference.md");
-const mermaidReference = readFileSync(
-  existsSync(sharedMermaidPath) ? sharedMermaidPath : localMermaidPath,
-  "utf-8"
-);
+  return readFileSync(existsSync(sharedFile) ? sharedFile : join(__dirname, name), "utf-8");
+}
+
+// The full references are served by get_drawio_reference rather than appended
+// to the tool descriptions: at ~35k / 14k characters (the XML one ~16k tokens)
+// they made the descriptions too long for clients that index them — VS Code
+// Copilot embeds descriptions in batches for its tool search, and one
+// oversized description fails the whole batch, other servers' tools included
+// (jgraph/drawio-mcp#76). open_drawio_xml inlines the condensed XML reference
+// (xml-essentials.md) instead, which in LLM tests did as well as the full one.
+const references =
+{
+  xml: readShared("xml-reference.md"),
+  mermaid: readShared("mermaid-reference.md"),
+};
+
+const xmlEssentials = readShared("xml-essentials.md").trim();
 
 // Shape search. To keep the npm package lean, the ~4.6 MB shape index is NOT
 // bundled — it is fetched from the CDN on first use through the same
@@ -185,6 +190,23 @@ function loadNormalize()
   return normalizePromise;
 }
 
+// shared/repair-xml.js (the mechanical slips LLMs make in XML: text around the
+// diagram, `<` or a stray `&` in attribute values, a layer that is its own
+// parent), copied into src/ by copy-shared — same import. Memoized; pure
+// string helpers, no I/O.
+let repairPromise = null;
+
+function loadRepair()
+{
+  if (!repairPromise)
+  {
+    repairPromise = import("./repair-xml.js")
+      .catch(function() { return import("../../shared/repair-xml.js"); });
+  }
+
+  return repairPromise;
+}
+
 // shared/mermaid-elk.js (the Mermaid ELK layout selector), copied into src/ by
 // copy-shared like the search helpers — same local-copy-then-repo import so an
 // in-repo run works without the copy. Memoized; pure string helpers, no I/O.
@@ -210,12 +232,12 @@ const WIN_URL_FILE_MAX_LENGTH = 2000;
 /**
  * Builds an HTML page that forwards the browser to the given URL from
  * JavaScript. Browsers accept URLs far beyond OS shell limits, and the
- * #create= fragment never leaves the client, so this has no practical
- * length cap.
+ * fragment carrying the diagram never leaves the client, so this has no
+ * practical length cap.
  */
 function buildRedirectHtml(url)
 {
-  // The #create= payload is percent-encoded, but DRAWIO_BASE_URL comes
+  // The diagram fragment is percent-encoded, but DRAWIO_BASE_URL comes
   // from the environment, so escape anything that could break out of
   // the string literal or close the script element.
   const escaped = url
@@ -248,7 +270,7 @@ function openBrowser(url)
   if (process.platform === "win32")
   {
     // cmd.exe's "start" command treats & as a command separator and
-    // drops everything after # in URLs, so the #create=... fragment
+    // drops everything after # in URLs, so the #R/#create= fragment
     // (which carries the entire diagram payload) is silently lost.
     // Writing a temporary .url file preserves the full URL intact, but
     // only up to the shell's InternetShortcut length limit — beyond it
@@ -307,7 +329,15 @@ function compressData(data)
 }
 
 /**
- * Generates a draw.io URL with the #create hash parameter
+ * Generates a draw.io URL carrying the diagram in its hash: XML as #R (the
+ * compressed XML, which draw.io loads as it is), Mermaid and CSV as
+ * #create={...}, which draw.io converts in the browser.
+ *
+ * Why not #create for XML too: after a #create, draw.io rewrites the hash
+ * with the diagram it created, and when that differs from the link it loads
+ * the link again and asks "All changes will be lost!". A host that re-encodes
+ * the link on the way to the browser makes them differ: VS Code opens links
+ * as encodeURI(uri.toString(true)). draw.io never rewrites a #R hash.
  */
 function generateDrawioUrl(data, type, options = {})
 {
@@ -319,18 +349,6 @@ function generateDrawioUrl(data, type, options = {})
   } = options;
 
   const compressedData = compressData(data);
-
-  const createObj = {
-    type: type,
-    compressed: true,
-    data: compressedData,
-  };
-
-  if (type === "mermaid")
-  {
-    createObj.version = MERMAID_DEFAULTS_VERSION;
-  }
-
   const params = new URLSearchParams();
 
   if (lightbox)
@@ -353,10 +371,31 @@ function generateDrawioUrl(data, type, options = {})
   params.set("border", border.toString());
   params.set("edit", edit);
 
-  const createHash = "#create=" + encodeURIComponent(JSON.stringify(createObj));
+  let hash;
+
+  if (type === "xml")
+  {
+    hash = "#R" + encodeURIComponent(compressedData);
+  }
+  else
+  {
+    const createObj = {
+      type: type,
+      compressed: true,
+      data: compressedData,
+    };
+
+    if (type === "mermaid")
+    {
+      createObj.version = MERMAID_DEFAULTS_VERSION;
+    }
+
+    hash = "#create=" + encodeURIComponent(JSON.stringify(createObj));
+  }
+
   const paramsStr = params.toString();
 
-  return DRAWIO_BASE_URL + (paramsStr ? "?" + paramsStr : "") + createHash;
+  return DRAWIO_BASE_URL + (paramsStr ? "?" + paramsStr : "") + hash;
 }
 
 // Define the tools
@@ -365,10 +404,18 @@ const tools =
   {
     name: "open_drawio_xml",
     description:
-      "Opens the draw.io editor with a diagram from XML content. " +
-      "Use this to view, edit, or create diagrams in draw.io format. " +
-      "The XML should be valid draw.io/mxGraph XML format.\n\n" +
-      xmlReference,
+      "Opens the draw.io editor with a diagram from draw.io XML. " +
+      "Use it for custom styling, precise positioning and stencil-based diagrams " +
+      "(cloud, network, P&ID, UI mockups, floor plans); prefer open_drawio_mermaid " +
+      "for flowcharts, sequence, class, ER and the other types Mermaid covers.\n\n" +
+      xmlEssentials + "\n" +
+      "- Cloud/network/P&ID icons or logos: call search_shapes, use its style.\n" +
+      "- Set postLayout \"elk\" for flowcharts, process and tree diagrams (ELK places nodes and " +
+      "routes edges), or routing \"libavoid\" for hand-placed layouts whose edges would cross " +
+      "shapes. Never both.\n\n" +
+      "Only when the diagram needs layers, tags, metadata and placeholders, tables, " +
+      "cross-functional grids or dark-mode colors, call get_drawio_reference with format " +
+      "\"xml\" for the full reference.",
     inputSchema:
     {
       type: "object",
@@ -451,10 +498,15 @@ const tools =
   {
     name: "open_drawio_mermaid",
     description:
-      "Opens the draw.io editor with a diagram generated from Mermaid.js syntax. " +
-      "Supports flowcharts, sequence diagrams, class diagrams, state diagrams, " +
-      "entity relationship diagrams, and more using Mermaid.js syntax.\n\n" +
-      mermaidReference,
+      "Opens the draw.io editor with a diagram generated from Mermaid.js syntax, " +
+      "converted into an editable draw.io diagram. The recommended default for " +
+      "flowcharts, sequence, class, state and ER diagrams, gantt charts, mind maps, " +
+      "timelines, C4, architecture and the other types draw.io's Mermaid parser " +
+      "supports (28 in all).\n\n" +
+      "Call get_drawio_reference with format \"mermaid\" once before your first " +
+      "Mermaid diagram in a conversation: it lists the header keyword and syntax " +
+      "hints for every supported type (a misspelled header yields a blank " +
+      "diagram) and flowchart styling.",
     inputSchema:
     {
       type: "object",
@@ -487,6 +539,31 @@ const tools =
         },
       },
       required: ["content"],
+    },
+  },
+  {
+    name: "get_drawio_reference",
+    description:
+      "Returns a full draw.io diagram generation reference as Markdown. Format \"mermaid\": " +
+      "the header keyword and syntax hints for every Mermaid type draw.io supports, " +
+      "flowchart styling and the ELK layout; call it once before the first Mermaid " +
+      "diagram in a conversation. Format \"xml\": everything beyond the rules in the " +
+      "open_drawio_xml description (layers, tags, metadata and placeholders, tables, " +
+      "cross-functional grids, dark-mode colors, more styles and examples); only needed when a diagram uses " +
+      "those. A reference stays valid for the rest of the conversation.",
+    inputSchema:
+    {
+      type: "object",
+      properties:
+      {
+        format:
+        {
+          type: "string",
+          enum: ["xml", "mermaid"],
+          description: "Which reference to return: \"xml\" for open_drawio_xml, \"mermaid\" for open_drawio_mermaid.",
+        },
+      },
+      required: ["format"],
     },
   },
   {
@@ -571,6 +648,16 @@ const tools =
   },
 ];
 
+// The values open_drawio_xml accepts for its pass options, from its schema —
+// the only arguments recovered when a model writes them into the XML string.
+const xmlToolProperties = tools.find(function(tool) { return tool.name === "open_drawio_xml"; }).inputSchema.properties;
+const XML_OPTION_VALUES =
+{
+  postLayout: xmlToolProperties.postLayout.enum,
+  direction: xmlToolProperties.direction.enum,
+  routing: xmlToolProperties.routing.enum,
+};
+
 // search_shapes is always advertised; the index is loaded lazily on first call
 // (local file in-repo, otherwise fetched from the CDN).
 tools.push({
@@ -636,6 +723,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
   try
   {
+    if (name === "get_drawio_reference")
+    {
+      const format = args?.format;
+
+      if (!Object.hasOwn(references, format))
+      {
+        return {
+          content: [{ type: "text", text: "Error: format must be \"xml\" or \"mermaid\"" }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: references[format] }],
+      };
+    }
+
     if (name === "search_shapes")
     {
       const query = args?.query;
@@ -820,6 +924,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
     const notes = [];
 
+    // The XML passes to run: the arguments, plus any the model wrote into the
+    // XML string instead of passing them (see leakedArguments).
+    const xmlOptions =
+    {
+      postLayout: args?.postLayout,
+      direction: args?.direction,
+      routing: args?.routing,
+    };
+
+    // XML: fix the mechanical slips first, so that the normalizer and the
+    // passes get XML they can parse — text around the diagram, `<` or a stray
+    // `&` in attribute values, a layer that is its own parent. Byte-identical
+    // on a well-formed diagram.
+    if (type === "xml")
+    {
+      try
+      {
+        const repair = await loadRepair();
+        const repaired = repair.repairDiagramXml(content);
+        const leaked = repair.leakedArguments(repaired.trailing, XML_OPTION_VALUES);
+
+        content = repaired.xml;
+
+        for (const key of Object.keys(leaked))
+        {
+          if (xmlOptions[key] == null)
+          {
+            xmlOptions[key] = leaked[key];
+          }
+        }
+      }
+      catch (error)
+      {
+        console.error("[repair] skipped: " +
+          (error instanceof Error ? error.message : String(error)));
+      }
+    }
+
     // XML: repair the model before any pass sees it — edges to the nearest
     // common ancestor of their terminals (LLM XML parks them on the layer,
     // which renders fine but lays out wrong, jgraph/drawio-mcp#64), a
@@ -849,11 +991,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
     // edges — the two are alternatives, but running both is harmless (ELK
     // first, then the router over its positions).
 
-    if (type === "xml" && args?.postLayout === "elk")
+    if (type === "xml" && xmlOptions.postLayout === "elk")
     {
       try
       {
-        content = await layoutXml(content, { direction: args?.direction });
+        content = await layoutXml(content, { direction: xmlOptions.direction });
       }
       catch (error)
       {
@@ -866,7 +1008,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
       }
     }
 
-    if (type === "xml" && args?.routing === "libavoid")
+    if (type === "xml" && xmlOptions.routing === "libavoid")
     {
       // routeXml never throws - it returns the original XML if routing isn't
       // applicable or anything fails.

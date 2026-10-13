@@ -12,6 +12,7 @@ import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
 import { withElkLayout, isFlowchartSource } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
+import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -303,8 +304,26 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         border-radius: 6px;
         background: transparent;
         cursor: pointer;
+        white-space: nowrap;
+        min-width: 0;
         transition: background 0.15s ease, border-color 0.15s ease,
                     color 0.15s ease, transform 0.08s ease;
+      }
+      /* A label never wraps: squeezed, it ends in an ellipsis until
+         fitToolbarLabels hides it. */
+      #toolbar button span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* No room for the button labels (fitToolbarLabels): icons only, square
+         like the other buttons. Title and aria-label still name them. */
+      #toolbar.compact button span {
+        display: none;
+      }
+      #toolbar.compact button {
+        width: 30px;
+        padding: 0;
       }
       #toolbar button:hover {
         background: var(--color-bg-hover, var(--viewer-btn-bg-hover));
@@ -314,6 +333,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       #toolbar button.icon-only {
         width: 30px;
         padding: 0;
+        flex-shrink: 0;
       }
       #toolbar svg {
         width: 16px;
@@ -422,7 +442,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       : '<script src="https://viewer.diagrams.net/js/viewer-static.min.js"><\/script>'
     }
 
-    <!-- pako deflate (inlined, for #create URL generation) -->
+    <!-- pako deflate (inlined, for the "Open in draw.io" link) -->
     <script>${pakoDeflateJs}</script>
 
     <!-- drawio-elk. Defines var ELK + ElkLayout/ElkAdapter/ElkApplier (engine + mxGraph bridge), consumed by drawio-mermaid and the postLayout pass. Must come before drawio-mermaid. -->
@@ -1357,14 +1377,21 @@ function convertMermaidToXml(mermaidText)
   }
 }
 
+// Opens the diagram as a #R link (the compressed XML itself) rather than
+// #create={...}. After a #create, draw.io rewrites the hash in its own
+// encoding; a host that re-encodes the link on the way to the browser (VS Code
+// opens it as encodeURI(uri.toString(true)), leaving ':' ',' '+' '/' '='
+// unescaped) makes that rewrite differ from the loaded hash, so draw.io's
+// hashchange handler takes it for a new diagram and asks "All changes will be
+// lost!". draw.io never rewrites a #R hash, and base64 survives the
+// re-encoding unchanged. The cost: #create's "pop" effect.
 function generateDrawioEditUrl(xml)
 {
   var encoded = encodeURIComponent(xml);
   var compressed = pako.deflateRaw(encoded);
   var base64 = btoa(Array.from(compressed, function(b) { return String.fromCharCode(b); }).join(""));
-  var createObj = { type: "xml", compressed: true, data: base64, effect: "pop" };
 
-  return "https://app.diagrams.net/?pv=0&grid=0#create=" + encodeURIComponent(JSON.stringify(createObj));
+  return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -6272,6 +6299,37 @@ window.addEventListener('resize', function()
   streamFollowNewCells(streamGraph, false);
 });
 
+// Drops the "Open in draw.io" and "Copy" labels when the toolbar is too
+// narrow to show them whole: a squeezed label ends in an ellipsis (CSS), and
+// this hides the labels instead. Measured with the labels shown each time:
+// when the toolbar's width changes, when a button is shown or hidden, and
+// when a label changes ("Copied!").
+function fitToolbarLabels()
+{
+  toolbarEl.classList.remove('compact');
+
+  var tight = toolbarEl.scrollWidth > toolbarEl.clientWidth;
+  var labels = toolbarEl.querySelectorAll('button span');
+
+  for (var i = 0; i < labels.length && !tight; i++)
+  {
+    tight = labels[i].offsetWidth > 0 && labels[i].scrollWidth > labels[i].clientWidth;
+  }
+
+  if (tight)
+  {
+    toolbarEl.classList.add('compact');
+  }
+}
+
+if (typeof ResizeObserver !== 'undefined')
+{
+  new ResizeObserver(fitToolbarLabels).observe(toolbarEl);
+}
+
+new MutationObserver(fitToolbarLabels).observe(toolbarEl,
+  { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+
 app.connect().then(function()
 {
   // Pick up the initial displayMode + safeAreaInsets after handshake.
@@ -6580,23 +6638,29 @@ function getTagMap(shapeIndex)
 // ── Fallback for clients without an MCP Apps UI ──────────────────────────────
 
 /**
- * A draw.io editor URL carrying the whole diagram in its #create= fragment —
- * the same format the app's "Open in draw.io" button builds
- * (generateDrawioEditUrl) and the mcp-tool-server hands back. The fragment
- * never leaves the browser, so the diagram isn't sent anywhere by opening it.
+ * A draw.io editor URL carrying the whole diagram in its fragment, in the
+ * formats the mcp-tool-server hands back: XML as a #R link, like the app's
+ * "Open in draw.io" button (see generateDrawioEditUrl for why not #create),
+ * Mermaid as #create={type:"mermaid"}. The fragment never leaves the browser,
+ * so the diagram isn't sent anywhere by opening it.
  *
  * @param {string} data - draw.io XML, or Mermaid source for type "mermaid"
  *   (the editor converts and lays that out itself).
  * @param {"xml"|"mermaid"} type
  * @returns {string}
  */
-function drawioCreateUrl(data, type)
+function drawioEditorUrl(data, type)
 {
   const compressed = pako.deflateRaw(encodeURIComponent(data));
   const base64 = btoa(Array.from(compressed, function(b)
   {
     return String.fromCharCode(b);
   }).join(""));
+
+  if (type === "xml")
+  {
+    return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
+  }
 
   const createObj = { type: type, compressed: true, data: base64, effect: "pop" };
 
@@ -6676,7 +6740,7 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
   }
 
   var note = "If this client doesn't show the diagram inline, open it in the " +
-    "draw.io editor (give the user this link):\n" + drawioCreateUrl(data, type);
+    "draw.io editor (give the user this link):\n" + drawioEditorUrl(data, type);
 
   if (type === "xml" && postLayout)
   {
@@ -6688,6 +6752,16 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
 }
 
 // ── Server ───────────────────────────────────────────────────────────────────
+
+// The values create_diagram accepts for its pass options (its inputSchema uses
+// them) — also the only arguments recovered when a model writes them into the
+// XML string (leakedArguments).
+var XML_OPTION_VALUES =
+{
+  postLayout: ["elk"],
+  direction: ["vertical", "horizontal"],
+  routing: ["libavoid"],
+};
 
 /**
  * Create a new MCP server instance with the create_diagram tool + UI resource.
@@ -6775,7 +6849,7 @@ export function createServer(html, options = {})
             "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
           ),
         postLayout: z
-          .enum(["elk"])
+          .enum(XML_OPTION_VALUES.postLayout)
           .optional()
           .describe(
             "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for directional/hierarchical diagrams: flowcharts, process diagrams, state diagrams, decision flows, pipelines, ER/class diagrams with clear parent→child direction. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
@@ -6783,13 +6857,13 @@ export function createServer(html, options = {})
             "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
           ),
         direction: z
-          .enum(["vertical", "horizontal"])
+          .enum(XML_OPTION_VALUES.direction)
           .optional()
           .describe(
             "**XML only** — the flow direction for `postLayout: \"elk\"` on XML diagrams: `vertical` (top-down) or `horizontal` (left-to-right). Defaults to `vertical`. **Ignored for Mermaid**, where direction is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`). Only meaningful together with `postLayout: \"elk\"`."
           ),
         routing: z
-          .enum(["libavoid"])
+          .enum(XML_OPTION_VALUES.routing)
           .optional()
           .describe(
             "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes each edge's path so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them. Set it for XML diagrams where you have placed nodes deliberately (architecture, network topology, deployment, swimlanes, UML, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
@@ -6849,6 +6923,20 @@ export function createServer(html, options = {})
           isError: true,
         };
       }
+
+      // Fix the mechanical slips first, so that the normalizer, the viewer and
+      // the passes get XML they can parse: text around the diagram (a leaked
+      // tool-call tag after it), `<` or a stray `&` in attribute values, a
+      // layer that is its own parent. Pass options the model wrote into the
+      // XML string instead of passing them are recovered, if valid.
+      // Byte-identical on a well-formed diagram (shared/repair-xml.js).
+      var repaired = repairDiagramXml(normalizedXml);
+      var leaked = leakedArguments(repaired.trailing, XML_OPTION_VALUES);
+
+      normalizedXml = repaired.xml;
+      postLayout = postLayout || leaked.postLayout;
+      direction = direction || leaked.direction;
+      routing = routing || leaked.routing;
 
       // Repair the model before the payload goes anywhere: edges to the
       // nearest common ancestor of their terminals (LLM XML parks them on the

@@ -25,7 +25,7 @@ When you ask Copilot to create a diagram, it will:
 3. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
    - `url` — compress the XML with Node.js's built-in `zlib` and open
-     `https://app.diagrams.net/#create=...` in your browser (keeps the `.drawio` file as a
+     `https://app.diagrams.net/#R...` in your browser (keeps the `.drawio` file as a
      local copy)
    - *(default)* — leave the `.drawio` file as-is
 4. Open the result
@@ -114,17 +114,20 @@ diagram. In `url` mode, the `.drawio` file is kept so you have a persistent loca
 re-edit or share.
 
 `url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process`
-(browser open) — no external dependencies. The resulting `https://app.diagrams.net/#create=...`
-URL is the same format used by the [MCP Tool Server](../../mcp-tool-server/README.md), so
-behavior is identical.
+(browser open) — no external dependencies. The resulting `https://app.diagrams.net/#R...`
+URL is the same format the [MCP Tool Server](../../mcp-tool-server/README.md) uses for XML,
+so behavior is identical.
 
 ## References
 
-The skill fetches two shared guides from GitHub at runtime — the single source of truth for
+The skill fetches shared guides from GitHub at runtime — the single source of truth for
 all draw.io prompts across the repository. No extra files are bundled in the plugin.
 
-- [`shared/xml-reference.md`](../../shared/xml-reference.md) — draw.io XML generation
-  (edge routing, containers, layers, tags, metadata, dark mode, etc.), used when authoring XML
+- [`shared/xml-essentials.md`](../../shared/xml-essentials.md) — the condensed XML rules
+  (skeleton, cell templates, labels, shapes, the layout grid, containers, swimlanes, edge styles),
+  used when authoring XML
+- [`shared/xml-reference.md`](../../shared/xml-reference.md) — the full XML reference, fetched only
+  for layers, tags, metadata, tables, cross-functional grids and dark-mode colors
 - [`shared/mermaid-reference.md`](../../shared/mermaid-reference.md) — Mermaid syntax for
   all supported diagram types plus flowchart styling, used when authoring Mermaid
 

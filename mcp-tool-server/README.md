@@ -182,7 +182,7 @@ Opens the draw.io editor with XML content.
 | `direction` | string | No | Flow direction for `postLayout`: `"vertical"` (default) or `"horizontal"` |
 | `routing` | string | No | `"libavoid"` reroutes connectors around shapes (obstacle-avoiding orthogonal routing) before opening, leaving positions untouched |
 
-Every diagram is normalized on the way through, the way the draw.io editor maintains its own model: edges are filed at the nearest common ancestor of their terminals (so you can keep writing `parent="1"` on every edge and containers still lay out correctly), an edge written without a geometry gets one (it would not render otherwise), and a container that would clip a child is grown to fit it. The same repairs the draw.io Desktop CLI applies with `--normalize`.
+Every diagram is repaired first: text around it is dropped (a leaked tool-call tag, a code fence), `<` and stray `&` in attribute values are escaped, and a layer written as its own parent is re-parented — the slips that broke 3% of LLM-written diagrams in tests. A layout or routing option the model wrote into the XML string by mistake is still applied. Then every diagram is normalized on the way through, the way the draw.io editor maintains its own model: edges are filed at the nearest common ancestor of their terminals (so you can keep writing `parent="1"` on every edge and containers still lay out correctly), an edge written without a geometry gets one (it would not render otherwise), and a container that would clip a child is grown to fit it. The same repairs the draw.io Desktop CLI applies with `--normalize`.
 
 `postLayout` and `routing` are alternatives: ELK places the vertices *and* routes the edges, libavoid only fixes the connectors of a layout you placed yourself. Both run on the server before the diagram is compressed into the URL; the diagram itself still never leaves your machine (it travels in the URL fragment). The ELK pass loads the `drawio-elk` bundle from the draw.io CDN on first use and caches it per user, so the first layout after an update pays a one-off download.
 
@@ -208,6 +208,14 @@ Opens the draw.io editor with a Mermaid.js diagram.
 | `postLayout` | string | No | `"elk"` switches a Mermaid **flowchart** to the layered ELK layout (direction still follows the flowchart code). Ignored for other diagram types |
 
 `postLayout` costs nothing here: it selects the layout in the Mermaid source (a `config: { layout: elk }` frontmatter block) and draw.io applies it while converting the diagram — the same result as writing that frontmatter yourself.
+
+### `get_drawio_reference`
+
+Returns a full diagram generation reference: [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), which the model reads before its first Mermaid diagram, or [`shared/xml-reference.md`](../shared/xml-reference.md), which `open_drawio_xml` only needs for layers, tags, metadata, tables, cross-functional grids and dark-mode colors — its description already carries the condensed [`shared/xml-essentials.md`](../shared/xml-essentials.md).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `format` | string | Yes | `"xml"` or `"mermaid"` |
 
 ### `search_shapes`
 
@@ -241,11 +249,11 @@ Page-level access to a local multi-page `.drawio` file, so one page can be inspe
 
 1. The MCP server receives diagram content (XML, CSV, or Mermaid)
 2. Content is compressed using pako deflateRaw and encoded as base64
-3. A draw.io URL is generated with the `#create` hash parameter
+3. A draw.io URL is generated with the diagram in its hash: `#R` for XML, `#create=` for Mermaid and CSV, which draw.io converts in the browser
 4. The URL is returned to the LLM, which can present it to the user
 5. Opening the URL loads draw.io with the diagram ready to view/edit
 
-The `open_drawio_xml` tool description includes the full XML generation reference (edge routing, containers, layers, tags, metadata, dark mode, etc.) loaded from [`shared/xml-reference.md`](../shared/xml-reference.md) — the single source of truth for all draw.io MCP prompts. A `prepack` script bundles this file into the npm package so it works after `npm install`.
+The `open_drawio_xml` description carries the condensed XML rules from [`shared/xml-essentials.md`](../shared/xml-essentials.md) (~1.5k characters). The full XML generation reference (edge routing, containers, layers, tags, metadata, dark mode, etc.) in [`shared/xml-reference.md`](../shared/xml-reference.md), the single source of truth for all draw.io MCP prompts, and the Mermaid reference in [`shared/mermaid-reference.md`](../shared/mermaid-reference.md) are fetched with `get_drawio_reference`. That keeps every tool description short: clients like VS Code Copilot index tool descriptions, and a description carrying a whole reference is too long for them. A `prepack` script bundles the three files into the npm package so they work after `npm install`.
 
 ## Related Resources
 

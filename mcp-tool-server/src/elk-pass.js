@@ -2,7 +2,7 @@
 //
 // The app server runs ELK in the browser against the live mxGraph model of
 // the rendered diagram. The tool server has no renderer — it just compresses
-// XML into a #create= URL — so here we drive the SAME drawio-elk bridge the
+// XML into a #R URL — so here we drive the SAME drawio-elk bridge the
 // editor and the app server use (ElkLayout, loaded from the CDN by
 // elk-engine.js) against the headless model that shared/mx-xml.js parses out
 // of the XML, and let it write the new geometries and edge styles back.

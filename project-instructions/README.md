@@ -7,20 +7,20 @@ An alternative approach that works **without installing the MCP server**. Instea
 - **No installation required** - works immediately in Claude.ai
 - **No desktop app needed** - works entirely in the browser
 - **Easy to use** - just add instructions to your Claude Project
-- **Privacy-friendly** - the generated URL uses a hash fragment (`#create=...`), which stays in the browser and is never sent to any server
+- **Privacy-friendly** - the generated URL carries the diagram in its hash fragment (`#R...` for XML, `#create=...` for Mermaid and CSV), which stays in the browser and is never sent to any server
 
 ## How to Install
 
 1. Open your Claude Project settings
 2. Add the contents of [`claude-project-instructions.txt`](claude-project-instructions.txt) to your project instructions
-3. Also add the contents of [`shared/xml-reference.md`](../shared/xml-reference.md) — this is the XML generation reference covering edge routing, containers, layers, tags, metadata, dark mode, and more
+3. Also add the contents of [`shared/xml-essentials.md`](../shared/xml-essentials.md) — the condensed XML rules (skeleton, cell templates, labels, shapes, the layout grid, containers, swimlanes, edge styles). Add the full [`shared/xml-reference.md`](../shared/xml-reference.md) as well only if you need layers, tags, metadata, tables, cross-functional grids or dark-mode colors
 4. Ask Claude to create diagrams - it will generate clickable draw.io URLs
 
 ## How It Works
 
 The instructions teach Claude to:
 1. Generate diagram code (Mermaid, XML, or CSV)
-2. Execute Python code to compress and encode the diagram
+2. Execute Python code that repairs common XML slips, checks that the XML is well-formed, and compresses and encodes the diagram
 3. The script outputs a complete HTML page with the URL embedded as a clickable button
 4. Claude presents the HTML as an artifact - the user clicks the button to open draw.io
 

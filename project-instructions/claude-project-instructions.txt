@@ -28,7 +28,8 @@ Choose the optimal format for the task:
 Execute this Python code to generate the draw.io URL and output it as an HTML artifact:
 
 ```python
-import json, zlib, base64
+import json, re, zlib, base64
+import xml.etree.ElementTree as ET
 from urllib.parse import quote
 
 # Set these variables:
@@ -36,14 +37,29 @@ diagram_type = "mermaid"  # "mermaid", "xml", or "csv"
 diagram_code = """graph TD
     A[Start] --> B[End]"""
 
+if diagram_type == "xml":
+    # Repair the common slips: text around the diagram, < or a stray & in an
+    # attribute value, the default layer written as its own parent
+    found = re.search(r"<mxfile[\s\S]*?</mxfile>|<mxGraphModel[\s\S]*?</mxGraphModel>", diagram_code)
+    if found and diagram_code.strip() != found.group(0):
+        diagram_code = found.group(0)
+    diagram_code = re.sub(r'="([^"]*)"', lambda m: '="' + re.sub(r"&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)", "&amp;", m.group(1).replace("<", "&lt;")) + '"', diagram_code)
+    diagram_code = re.sub(r'<mxCell id="([^"]+)" parent="\1"\s*/>', r'<mxCell id="\1" parent="0"/>', diagram_code)
+    # Stops with an error if the XML is still not well-formed: fix it and run again
+    ET.fromstring(diagram_code)
+
 # Generate compressed URL
 encoded = quote(diagram_code, safe='')
 c = zlib.compressobj(9, zlib.DEFLATED, -15)
 raw_deflate = c.compress(encoded.encode('utf-8')) + c.flush()
 data = base64.b64encode(raw_deflate).decode()
 
-payload = json.dumps({"type": diagram_type, "compressed": true, "data": data})
-url = f"https://app.diagrams.net/?pv=0&grid=0#create={quote(payload, safe='')}"
+# XML opens as #R (the compressed XML as it is); draw.io converts Mermaid and CSV from #create
+if diagram_type == "xml":
+    url = f"https://app.diagrams.net/?pv=0&grid=0#R{quote(data, safe='')}"
+else:
+    payload = json.dumps({"type": diagram_type, "compressed": True, "data": data})
+    url = f"https://app.diagrams.net/?pv=0&grid=0#create={quote(payload, safe='')}"
 
 # Output as HTML page
 print(f"""<!DOCTYPE html>
@@ -105,7 +121,10 @@ print(f"""<!DOCTYPE html>
 
 ## XML Reference
 
-For detailed guidance on edge routing, containers, layers, tags, metadata, dark mode colors, style properties, and XML well-formedness rules, copy the contents of the following file into your Claude Project alongside these instructions:
+For draw.io XML, follow the condensed XML rules (skeleton, vertex and edge templates, labels, shapes, the layout grid, containers, swimlanes, edge styles). Copy the contents of the following file into your Claude Project alongside these instructions:
+https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-essentials.md
+
+Only if you need layers, tags, metadata and placeholders, tables, cross-functional grids or dark-mode colors, also add the full XML reference. It describes the draw.io MCP servers, so its `search_shapes` tool and `postLayout` / `routing` options don't apply here — place the nodes on the layout grid instead:
 https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-reference.md
 
 ## Format Examples

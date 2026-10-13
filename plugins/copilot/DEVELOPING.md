@@ -57,11 +57,12 @@ understands Claude-format plugins.
 
 ## References (fetched, not bundled)
 
-Like the Claude plugin, `SKILL.md` fetches the two shared guides via their GitHub raw URLs at
+Like the Claude plugin, `SKILL.md` fetches the shared guides via their GitHub raw URLs at
 runtime — the single source of truth for all draw.io prompts — so nothing is duplicated in
 the plugin:
 
-- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md`
+- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-essentials.md`
+- `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md` (only for advanced topics)
 - `https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/mermaid-reference.md`
 
 When updating diagram-generation guidance, edit only the files under `shared/` — changes
@@ -69,10 +70,13 @@ propagate to this plugin (and every other consumer) automatically.
 
 ## URL Mode Compatibility
 
-The `url` mode produces the exact same `https://app.diagrams.net/#create=...` URL format as
-the [MCP Tool Server](../../mcp-tool-server/README.md) (`mcp-tool-server/src/index.js`).
+The `url` mode produces the same `https://app.diagrams.net/#R...` URL format as the
+[MCP Tool Server](../../mcp-tool-server/README.md)'s XML links (`mcp-tool-server/src/index.js`).
 Node.js's built-in `zlib.deflateRawSync` and `pako.deflateRaw` both implement RFC 1951, so
-their outputs are interchangeable. No external npm dependencies are added to the skill — only
+draw.io decompresses either, though their bytes differ. That difference is one reason the skill
+doesn't use `#create=` for XML: draw.io rewrites a `#create` hash after loading it, and when the
+rewrite differs from the link it asks "All changes will be lost!". draw.io never rewrites a `#R`
+hash. No external npm dependencies are added to the skill — only
 Node.js built-ins (`zlib`, `child_process`, `fs`, `os`, `path`).
 
 ## draw.io CLI Locations

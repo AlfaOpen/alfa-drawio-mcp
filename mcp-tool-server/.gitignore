@@ -1,5 +1,6 @@
 node_modules/
 src/xml-reference.md
+src/xml-essentials.md
 src/mermaid-reference.md
 src/shape-search.js
 src/icon-search.js
@@ -7,3 +8,4 @@ src/mermaid-elk.js
 src/mx-model.js
 src/mx-xml.js
 src/normalize-model.js
+src/repair-xml.js
