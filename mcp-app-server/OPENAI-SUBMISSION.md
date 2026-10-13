@@ -148,7 +148,7 @@ and the fact that the `mcp.draw.io` Worker has no persisted logs (no
 Setup in the portal: **MCPs** tab → **Connect** → the panel shows the URL from
 `.mcp.json`, "No Auth" and "Domain verified" → **Connect** → **Continue**. The
 scan then lists `create_diagram` and `search_shapes` ("Not live" until
-published); a rescan after the next production deploy adds
+published); since app server 1.1.0 (2026-10-13) it also lists
 `get_drawio_reference`. Then **Add review information** (countries, five test cases, three
 negative test cases, video URL + release notes) → **Save details**.
 
@@ -169,15 +169,14 @@ All three also carry `idempotentHint: true`. Tool responses contain only the dia
 the caller supplied, the shape styles, the references, and the `app.diagrams.net`
 link — no personal data, no secrets, no internal identifiers.
 
-`get_drawio_reference` is **not live yet** and was not in the 1.0.1 scan. It
-replaces the ~55k-character `create_diagram` description, which carried both
-references and broke VS Code Copilot's tool search
-([#76](https://github.com/jgraph/drawio-mcp/issues/76)); the description is now
-~1.8k characters and tells the model to call the new tool before its first
-diagram. Per the rule of thumb below, it goes to production only once the 1.0.1
-review is decided. After that deploy, rescan and update the test cases'
-"Tool triggered" column for the next version: a model that follows the
-description calls `get_drawio_reference` before `create_diagram`.
+`get_drawio_reference` is **live since app server 1.1.0 (2026-10-13)** and was
+not in the 1.0.1 scan. It replaces the ~55k-character `create_diagram`
+description, which carried both references and broke VS Code Copilot's tool
+search ([#76](https://github.com/jgraph/drawio-mcp/issues/76)); the
+description is now ~1.8k characters and tells the model to call the new tool
+before its first diagram. For the resubmission: rescan, and change the test
+cases' "Tool triggered" column — a model that follows the description calls
+`get_drawio_reference` before `create_diagram`.
 
 The portal recommends an `outputSchema`. `search_shapes` declares one
 (`{ shapes: [{style, w, h, title}] }`, returned as `structuredContent` beside the
