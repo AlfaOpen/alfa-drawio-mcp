@@ -71,6 +71,32 @@ VS Code 1.109 and later shows diagrams inline in GitHub Copilot Chat. Add the se
 
 Click **Start** above the server entry, confirm that you trust the folder if VS Code asks, then ask Copilot Chat in **Agent** mode to create a diagram.
 
+### Using with GitHub Copilot CLI
+
+Add the hosted endpoint from your terminal:
+
+```bash
+copilot mcp add --transport http drawio https://mcp.draw.io/mcp
+```
+
+Or, in a Copilot CLI session, enter `/mcp add`, name the server *drawio*, choose **HTTP** as the server type, paste `https://mcp.draw.io/mcp` as the URL, and press <kbd>Ctrl</kbd>+<kbd>S</kbd>. Both store it in `~/.copilot/mcp-config.json`, which you can also edit directly:
+
+```json
+{
+  "mcpServers": {
+    "drawio": {
+      "type": "http",
+      "url": "https://mcp.draw.io/mcp",
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+Copilot CLI doesn't read VS Code's `.vscode/mcp.json`. To share the server with everyone working in a repository, put the same `mcpServers` entry in `.github/mcp.json`. See [Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
+
+A terminal can't show the diagram inline, so `create_diagram` returns an `app.diagrams.net` link that opens it in the draw.io editor. If you'd rather have diagrams open in your browser directly, use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server: `copilot mcp add drawio -- npx -y @drawio/mcp`. To create `.drawio` files and PNG, SVG or PDF exports in your project instead, install the [draw.io plugin for Copilot CLI](../plugins/copilot/README.md).
+
 ### Using with Cursor
 
 Cursor supports the MCP Apps extension (Cursor **≥ 2.6**), so diagrams render inline in the Agent chat. On older builds the server still connects, but there's nothing to render inline; use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server instead, which opens diagrams in the browser.
