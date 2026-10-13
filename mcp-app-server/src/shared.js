@@ -442,7 +442,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       : '<script src="https://viewer.diagrams.net/js/viewer-static.min.js"><\/script>'
     }
 
-    <!-- pako deflate (inlined, for #create URL generation) -->
+    <!-- pako deflate (inlined, for the "Open in draw.io" link) -->
     <script>${pakoDeflateJs}</script>
 
     <!-- drawio-elk. Defines var ELK + ElkLayout/ElkAdapter/ElkApplier (engine + mxGraph bridge), consumed by drawio-mermaid and the postLayout pass. Must come before drawio-mermaid. -->
@@ -6638,23 +6638,29 @@ function getTagMap(shapeIndex)
 // ── Fallback for clients without an MCP Apps UI ──────────────────────────────
 
 /**
- * A draw.io editor URL carrying the whole diagram in its #create= fragment —
- * the format the mcp-tool-server hands back (the app's "Open in draw.io"
- * button uses a #R link instead, see generateDrawioEditUrl). The fragment
- * never leaves the browser, so the diagram isn't sent anywhere by opening it.
+ * A draw.io editor URL carrying the whole diagram in its fragment, in the
+ * formats the mcp-tool-server hands back: XML as a #R link, like the app's
+ * "Open in draw.io" button (see generateDrawioEditUrl for why not #create),
+ * Mermaid as #create={type:"mermaid"}. The fragment never leaves the browser,
+ * so the diagram isn't sent anywhere by opening it.
  *
  * @param {string} data - draw.io XML, or Mermaid source for type "mermaid"
  *   (the editor converts and lays that out itself).
  * @param {"xml"|"mermaid"} type
  * @returns {string}
  */
-function drawioCreateUrl(data, type)
+function drawioEditorUrl(data, type)
 {
   const compressed = pako.deflateRaw(encodeURIComponent(data));
   const base64 = btoa(Array.from(compressed, function(b)
   {
     return String.fromCharCode(b);
   }).join(""));
+
+  if (type === "xml")
+  {
+    return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
+  }
 
   const createObj = { type: type, compressed: true, data: base64, effect: "pop" };
 
@@ -6734,7 +6740,7 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
   }
 
   var note = "If this client doesn't show the diagram inline, open it in the " +
-    "draw.io editor (give the user this link):\n" + drawioCreateUrl(data, type);
+    "draw.io editor (give the user this link):\n" + drawioEditorUrl(data, type);
 
   if (type === "xml" && postLayout)
   {

@@ -232,12 +232,12 @@ const WIN_URL_FILE_MAX_LENGTH = 2000;
 /**
  * Builds an HTML page that forwards the browser to the given URL from
  * JavaScript. Browsers accept URLs far beyond OS shell limits, and the
- * #create= fragment never leaves the client, so this has no practical
- * length cap.
+ * fragment carrying the diagram never leaves the client, so this has no
+ * practical length cap.
  */
 function buildRedirectHtml(url)
 {
-  // The #create= payload is percent-encoded, but DRAWIO_BASE_URL comes
+  // The diagram fragment is percent-encoded, but DRAWIO_BASE_URL comes
   // from the environment, so escape anything that could break out of
   // the string literal or close the script element.
   const escaped = url
@@ -270,7 +270,7 @@ function openBrowser(url)
   if (process.platform === "win32")
   {
     // cmd.exe's "start" command treats & as a command separator and
-    // drops everything after # in URLs, so the #create=... fragment
+    // drops everything after # in URLs, so the #R/#create= fragment
     // (which carries the entire diagram payload) is silently lost.
     // Writing a temporary .url file preserves the full URL intact, but
     // only up to the shell's InternetShortcut length limit — beyond it
@@ -329,7 +329,15 @@ function compressData(data)
 }
 
 /**
- * Generates a draw.io URL with the #create hash parameter
+ * Generates a draw.io URL carrying the diagram in its hash: XML as #R (the
+ * compressed XML, which draw.io loads as it is), Mermaid and CSV as
+ * #create={...}, which draw.io converts in the browser.
+ *
+ * Why not #create for XML too: after a #create, draw.io rewrites the hash
+ * with the diagram it created, and when that differs from the link it loads
+ * the link again and asks "All changes will be lost!". A host that re-encodes
+ * the link on the way to the browser makes them differ: VS Code opens links
+ * as encodeURI(uri.toString(true)). draw.io never rewrites a #R hash.
  */
 function generateDrawioUrl(data, type, options = {})
 {
@@ -341,18 +349,6 @@ function generateDrawioUrl(data, type, options = {})
   } = options;
 
   const compressedData = compressData(data);
-
-  const createObj = {
-    type: type,
-    compressed: true,
-    data: compressedData,
-  };
-
-  if (type === "mermaid")
-  {
-    createObj.version = MERMAID_DEFAULTS_VERSION;
-  }
-
   const params = new URLSearchParams();
 
   if (lightbox)
@@ -375,10 +371,31 @@ function generateDrawioUrl(data, type, options = {})
   params.set("border", border.toString());
   params.set("edit", edit);
 
-  const createHash = "#create=" + encodeURIComponent(JSON.stringify(createObj));
+  let hash;
+
+  if (type === "xml")
+  {
+    hash = "#R" + encodeURIComponent(compressedData);
+  }
+  else
+  {
+    const createObj = {
+      type: type,
+      compressed: true,
+      data: compressedData,
+    };
+
+    if (type === "mermaid")
+    {
+      createObj.version = MERMAID_DEFAULTS_VERSION;
+    }
+
+    hash = "#create=" + encodeURIComponent(JSON.stringify(createObj));
+  }
+
   const paramsStr = params.toString();
 
-  return DRAWIO_BASE_URL + (paramsStr ? "?" + paramsStr : "") + createHash;
+  return DRAWIO_BASE_URL + (paramsStr ? "?" + paramsStr : "") + hash;
 }
 
 // Define the tools

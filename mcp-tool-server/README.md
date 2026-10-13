@@ -249,7 +249,7 @@ Page-level access to a local multi-page `.drawio` file, so one page can be inspe
 
 1. The MCP server receives diagram content (XML, CSV, or Mermaid)
 2. Content is compressed using pako deflateRaw and encoded as base64
-3. A draw.io URL is generated with the `#create` hash parameter
+3. A draw.io URL is generated with the diagram in its hash: `#R` for XML, `#create=` for Mermaid and CSV, which draw.io converts in the browser
 4. The URL is returned to the LLM, which can present it to the user
 5. Opening the URL loads draw.io with the diagram ready to view/edit
 

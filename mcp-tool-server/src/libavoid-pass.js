@@ -1,7 +1,7 @@
 // Server-side libavoid edge-routing pass for open_drawio_xml.
 //
 // The app server runs libavoid in the browser against the live mxGraph model.
-// The tool server has no renderer — it just compresses XML into a #create= URL
+// The tool server has no renderer — it just compresses XML into a #R URL
 // — so here we run the SAME shared routing core (AvoidRouting.computeRoutes)
 // against the headless model shared/mx-xml.js parses out of the XML, and let
 // it write the resulting waypoints back before the XML is compressed.

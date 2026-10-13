@@ -23,7 +23,7 @@ When you ask Codex to create a diagram, it will:
 3. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
    - `url` — compress the XML with Node.js's built-in `zlib` and open
-     `https://app.diagrams.net/#create=...` in your browser (keeps the `.drawio` file as a
+     `https://app.diagrams.net/#R...` in your browser (keeps the `.drawio` file as a
      local copy)
    - *(default)* — leave the `.drawio` file as-is
 4. Open the result
@@ -99,9 +99,9 @@ diagram. In `url` mode, the `.drawio` file is kept so you have a persistent loca
 re-edit or share.
 
 `url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process`
-(browser open) — no external dependencies. The resulting `https://app.diagrams.net/#create=...`
-URL is the same format used by the [MCP Tool Server](../../../mcp-tool-server/README.md), so
-behavior is identical.
+(browser open) — no external dependencies. The resulting `https://app.diagrams.net/#R...`
+URL is the same format the [MCP Tool Server](../../../mcp-tool-server/README.md) uses for XML,
+so behavior is identical.
 
 ## References
 

@@ -54,8 +54,12 @@ c = zlib.compressobj(9, zlib.DEFLATED, -15)
 raw_deflate = c.compress(encoded.encode('utf-8')) + c.flush()
 data = base64.b64encode(raw_deflate).decode()
 
-payload = json.dumps({"type": diagram_type, "compressed": True, "data": data})
-url = f"https://app.diagrams.net/?pv=0&grid=0#create={quote(payload, safe='')}"
+# XML opens as #R (the compressed XML as it is); draw.io converts Mermaid and CSV from #create
+if diagram_type == "xml":
+    url = f"https://app.diagrams.net/?pv=0&grid=0#R{quote(data, safe='')}"
+else:
+    payload = json.dumps({"type": diagram_type, "compressed": True, "data": data})
+    url = f"https://app.diagrams.net/?pv=0&grid=0#create={quote(payload, safe='')}"
 
 # Output as HTML page
 print(f"""<!DOCTYPE html>

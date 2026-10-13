@@ -96,8 +96,10 @@ These are the only tools whose arguments touch the local filesystem, so they are
 1. Content is encoded with `encodeURIComponent`
 2. Compressed using pako `deflateRaw`
 3. Encoded as base64
-4. Wrapped in a JSON object: `{ type, compressed: true, data }`
-5. Appended to the draw.io URL as `#create={...}`
+4. XML: appended to the draw.io URL as `#R` + the percent-encoded base64
+5. Mermaid and CSV: wrapped in a JSON object, `{ type, compressed: true, data }` (Mermaid adds `version`), and appended as `#create={...}`
+
+XML uses `#R` because draw.io rewrites a `#create` hash after loading it, and when the rewrite differs from the link it loads the link again and asks "All changes will be lost!". A host that re-encodes the link on the way to the browser makes them differ: VS Code opens links as `encodeURI(uri.toString(true))`. draw.io never rewrites a `#R` hash. Mermaid and CSV need `#create`, since draw.io converts them in the browser, and the converted diagram never matches the link: in draw.io 32.4.1 every Mermaid link shows that dialog, even opened directly. That fix is in draw.io (`executeCreateObject` giving the created file the rewritten hash, as `#R` files have).
 
 ## Quick Decision Guide
 

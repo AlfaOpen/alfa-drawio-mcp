@@ -10,7 +10,7 @@ When you ask Claude Code to create a diagram, it will:
 2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI, or write the XML directly (optionally running an ELK `--layout` pass so you don't hand-place cells)
 3. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
-   - `url` — compress the XML with Node.js's built-in `zlib` and open `https://app.diagrams.net/#create=...` in your browser (keeps the `.drawio` file as a local copy)
+   - `url` — compress the XML with Node.js's built-in `zlib` and open `https://app.diagrams.net/#R...` in your browser (keeps the `.drawio` file as a local copy)
    - *(default)* — leave the `.drawio` file as-is
 4. Open the result
 
@@ -81,7 +81,7 @@ More examples:
 
 The `.drawio.*` double extension signals that the file contains embedded diagram XML. Open any of these in draw.io to recover and edit the full diagram. The intermediate `.drawio` source file is deleted after image export since the exported file contains the complete diagram. In `url` mode, the `.drawio` file is kept so you have a persistent local copy to re-edit or share.
 
-`url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process` (browser open) — no external dependencies. The resulting `https://app.diagrams.net/#create=...` URL is the same format used by the [MCP Tool Server](../../mcp-tool-server/README.md), so behavior is identical.
+`url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process` (browser open) — no external dependencies. The resulting `https://app.diagrams.net/#R...` URL is the same format the [MCP Tool Server](../../mcp-tool-server/README.md) uses for XML, so behavior is identical.
 
 ## References
 

@@ -7,7 +7,7 @@ An alternative approach that works **without installing the MCP server**. Instea
 - **No installation required** - works immediately in Claude.ai
 - **No desktop app needed** - works entirely in the browser
 - **Easy to use** - just add instructions to your Claude Project
-- **Privacy-friendly** - the generated URL uses a hash fragment (`#create=...`), which stays in the browser and is never sent to any server
+- **Privacy-friendly** - the generated URL carries the diagram in its hash fragment (`#R...` for XML, `#create=...` for Mermaid and CSV), which stays in the browser and is never sent to any server
 
 ## How to Install
 
