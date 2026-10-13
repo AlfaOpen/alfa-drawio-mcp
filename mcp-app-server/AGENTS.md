@@ -87,6 +87,12 @@ Every XML diagram passes through `normalizeDiagram` (`shared/normalize-model.js`
 
 Doing it here rather than inside the layout keeps `postLayout` free of hierarchy side effects, and the corrected diagram is what the viewer renders, what "Open in draw.io" exports, and what the fallback URL carries. The implementation is `MxGraph.normalizeModel` in `shared/mx-model.js` — a port of drawio-dev's `Graph.normalizeModel`, i.e. the desktop CLI's `--normalize` — driven over the XML by `shared/mx-xml.js`; idempotent, and it rewrites nothing else.
 
+## Viewer toolbar
+
+**Labels.** "Open in draw.io" and "Copy" carry text labels; the other buttons are 30 px icons. A label never wraps (`white-space: nowrap`, an ellipsis if it is ever squeezed): `fitToolbarLabels` puts the toolbar in `compact` mode, icons only and every button square, whenever the labels can't be shown whole. It re-measures with the labels shown when the toolbar's width changes (`ResizeObserver`), when a button is shown or hidden, and when a label changes ("Copied!") (`MutationObserver`). The icon buttons never shrink (`flex-shrink: 0`), so the labels are what gives way.
+
+**"Open in draw.io"** opens a `#R` link (the compressed XML in the fragment), not `#create={...}`. After a `#create`, draw.io rewrites the hash in its own encoding, and its `hashchange` handler compares hashes as strings. A host that re-encodes the link on the way to the browser therefore makes that rewrite look like a different diagram, and draw.io asks "All changes will be lost!". VS Code does this: a link opened as a URI goes out as `encodeURI(uri.toString(true))`, which leaves `:` `,` `+` `/` `=` unescaped. draw.io never rewrites a `#R` hash, and base64 survives the re-encoding. `?pv=0&grid=0` still apply (draw.io reads them for every loaded diagram); `#create`'s `effect: "pop"` animation is the cost. The fallback link for clients without an MCP Apps UI and the tool server's link still use `#create=`, which Mermaid needs; a draw.io fix (compare the decoded hashes, or rewrite with `history.replaceState`) would cover those too.
+
 ## MCP Apps SDK Patterns
 
 - `registerAppTool` `inputSchema` uses Zod shapes (`{ key: z.string() }`), not JSON Schema objects

@@ -304,8 +304,26 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         border-radius: 6px;
         background: transparent;
         cursor: pointer;
+        white-space: nowrap;
+        min-width: 0;
         transition: background 0.15s ease, border-color 0.15s ease,
                     color 0.15s ease, transform 0.08s ease;
+      }
+      /* A label never wraps: squeezed, it ends in an ellipsis until
+         fitToolbarLabels hides it. */
+      #toolbar button span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* No room for the button labels (fitToolbarLabels): icons only, square
+         like the other buttons. Title and aria-label still name them. */
+      #toolbar.compact button span {
+        display: none;
+      }
+      #toolbar.compact button {
+        width: 30px;
+        padding: 0;
       }
       #toolbar button:hover {
         background: var(--color-bg-hover, var(--viewer-btn-bg-hover));
@@ -315,6 +333,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       #toolbar button.icon-only {
         width: 30px;
         padding: 0;
+        flex-shrink: 0;
       }
       #toolbar svg {
         width: 16px;
@@ -1358,14 +1377,21 @@ function convertMermaidToXml(mermaidText)
   }
 }
 
+// Opens the diagram as a #R link (the compressed XML itself) rather than
+// #create={...}. After a #create, draw.io rewrites the hash in its own
+// encoding; a host that re-encodes the link on the way to the browser (VS Code
+// opens it as encodeURI(uri.toString(true)), leaving ':' ',' '+' '/' '='
+// unescaped) makes that rewrite differ from the loaded hash, so draw.io's
+// hashchange handler takes it for a new diagram and asks "All changes will be
+// lost!". draw.io never rewrites a #R hash, and base64 survives the
+// re-encoding unchanged. The cost: #create's "pop" effect.
 function generateDrawioEditUrl(xml)
 {
   var encoded = encodeURIComponent(xml);
   var compressed = pako.deflateRaw(encoded);
   var base64 = btoa(Array.from(compressed, function(b) { return String.fromCharCode(b); }).join(""));
-  var createObj = { type: "xml", compressed: true, data: base64, effect: "pop" };
 
-  return "https://app.diagrams.net/?pv=0&grid=0#create=" + encodeURIComponent(JSON.stringify(createObj));
+  return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -6273,6 +6299,37 @@ window.addEventListener('resize', function()
   streamFollowNewCells(streamGraph, false);
 });
 
+// Drops the "Open in draw.io" and "Copy" labels when the toolbar is too
+// narrow to show them whole: a squeezed label ends in an ellipsis (CSS), and
+// this hides the labels instead. Measured with the labels shown each time:
+// when the toolbar's width changes, when a button is shown or hidden, and
+// when a label changes ("Copied!").
+function fitToolbarLabels()
+{
+  toolbarEl.classList.remove('compact');
+
+  var tight = toolbarEl.scrollWidth > toolbarEl.clientWidth;
+  var labels = toolbarEl.querySelectorAll('button span');
+
+  for (var i = 0; i < labels.length && !tight; i++)
+  {
+    tight = labels[i].offsetWidth > 0 && labels[i].scrollWidth > labels[i].clientWidth;
+  }
+
+  if (tight)
+  {
+    toolbarEl.classList.add('compact');
+  }
+}
+
+if (typeof ResizeObserver !== 'undefined')
+{
+  new ResizeObserver(fitToolbarLabels).observe(toolbarEl);
+}
+
+new MutationObserver(fitToolbarLabels).observe(toolbarEl,
+  { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style'] });
+
 app.connect().then(function()
 {
   // Pick up the initial displayMode + safeAreaInsets after handshake.
@@ -6582,8 +6639,8 @@ function getTagMap(shapeIndex)
 
 /**
  * A draw.io editor URL carrying the whole diagram in its #create= fragment —
- * the same format the app's "Open in draw.io" button builds
- * (generateDrawioEditUrl) and the mcp-tool-server hands back. The fragment
+ * the format the mcp-tool-server hands back (the app's "Open in draw.io"
+ * button uses a #R link instead, see generateDrawioEditUrl). The fragment
  * never leaves the browser, so the diagram isn't sent anywhere by opening it.
  *
  * @param {string} data - draw.io XML, or Mermaid source for type "mermaid"
