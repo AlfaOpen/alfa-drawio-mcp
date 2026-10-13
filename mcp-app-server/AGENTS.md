@@ -11,6 +11,7 @@ Renders draw.io diagrams inline in AI chat interfaces using the MCP Apps protoco
 | `src/worker.js` | Cloudflare Workers entry (Web Standard fetch handler) |
 | `src/build-html.js` | Build script: generates `generated-html.js` for the Worker |
 | `server.json` | MCP Community Registry manifest (`io.draw/mcp`, remote `https://mcp.draw.io/mcp`) — publish runbook in README "Publishing to the MCP Registry"; keep `version` in lockstep with `package.json` |
+| `snippet/mcp_edge.js` | Cloudflare Snippet in front of the Worker on `mcp.draw.io`: answers pings, notifications, session-less requests, GET/HEAD/DELETE/OPTIONS and OAuth discovery probes without a Worker invocation — see [Edge snippet](#edge-snippet) |
 | `openai-plugin/` | OpenAI Plugins Directory package (`.codex-plugin/plugin.json`: names, descriptions, starter prompts, policy URLs, icon; `.mcp.json`: the server, which can never change on an existing plugin) — zipped and uploaded as a new version in the portal; its own `version`, runbook in `OPENAI-SUBMISSION.md` |
 
 ## Architecture
@@ -60,6 +61,29 @@ The Worker serves `/mcp` **statelessly**: every request gets its own `createServ
 **Why stateless?** Until 2026-09-30 every session's server + transport lived in the memory of sharded Durable Objects (4, then 16, routed by the session id's first hex char). A DO handles its requests one at a time and has 128 MB: with each session building its own shape-search tag map (~8 MB), the shards hit their memory limit ~1,200 times an hour and reset (dropping every session), and on 2026-09-30 they overloaded outright ("Durable Object is overloaded"). Claude.ai opens a new session per connector refresh (`initialize` → `tools/list` → `resources/list`, rarely a call, never a `DELETE`), so the DOs mostly held idle sessions — ~0.3 MB each once they had served `tools/list`. The DOs were also the dominant cost (billed per active object, 128 MB each). The only state a session needs is one bit, which fits in its id.
 
 **MCP 2026-07-28** drops sessions and `initialize` altogether (capabilities arrive per request in `_meta`). Supporting it natively means SDK v2 (`@modelcontextprotocol/server` + `ext-apps` 2.x); v2's default handling of 2025-era clients is stateless too but loses their `initialize` capabilities, so the capability-in-session-id scheme stays for them.
+
+### Edge snippet
+
+`snippet/mcp_edge.js` is a [Cloudflare Snippet](https://developers.cloudflare.com/rules/snippets/) (snippet `mcp_edge`, zone `draw.io`, Enterprise). Snippets run before Workers and cost nothing per request, so the requests whose reply never depends on the server are answered there and never invoke the Worker:
+
+- a `ping` (200, the `id` echoed, `mcp-session-id` echoed) and a `notifications/*` message (202), both within a session
+- any JSON-RPC message but `initialize` without a session (400 "Server not initialized")
+- `GET` (405), `HEAD` (405), `DELETE` (200, or 400 without a session) and `OPTIONS` (204) on `/mcp`
+- OAuth/OIDC discovery probes (`/.well-known/oauth-*`, `/.well-known/openid-configuration`, `/mcp/.well-known/…`: 404)
+
+Everything else is passed on with `fetch(request)` and reaches the Worker unchanged. That includes `initialize`, `tools/*` and `resources/*`, batches, bodies over 1 KB or of unknown length, SSE-only clients, unknown `mcp-protocol-version`s and any message the SDK's strict JSON-RPC schemas might reject. Every reply the snippet makes carries `x-drawio-mcp-edge: snippet`.
+
+**Why:** Copilot CLI pings each open session every 21 s, forever, so windows left open keep pinging. In October 2026 that was ~71% of all Worker requests. Worker requests had grown from 2.3M a day (2026-09-29) to 7.1M a day (2026-10-12), and an 88 s `wrangler tail` sample put ~85% of them in the categories above.
+
+**Keeping it exact:** the snippet must answer exactly as the Worker would. `test/edge-snippet.test.js` holds the Worker's recorded replies, checks the pass-through cases, and fails when the SDK's `SUPPORTED_PROTOCOL_VERSIONS` no longer matches the snippet's copy. `EDGE_COMPARE_URL=<worker origin> npm test` also compares every answered case live. Run it against staging after an SDK update or a change to `worker.js`'s trivial paths (CORS headers, GET/DELETE handling), and redeploy the snippet when they change.
+
+**Rule** (snippet rules API: `PUT /zones/{zone}/snippets/snippet_rules` **replaces all rules in the zone**, so GET them first and send them back with this one added):
+
+```
+http.host eq "mcp.draw.io" and (http.request.uri.path eq "/mcp" or starts_with(http.request.uri.path, "/.well-known/oauth-") or starts_with(http.request.uri.path, "/.well-known/openid-configuration") or starts_with(http.request.uri.path, "/mcp/.well-known/"))
+```
+
+**Rollout:** deploy with ` and any(http.request.headers["x-drawio-mcp-edge-test"][*] eq "1")` appended to the rule, so only requests carrying that header reach the snippet. Check them against production (the `x-drawio-mcp-edge` header shows which side answered), then drop the condition. **Rollback:** disable or remove the rule, which takes effect at once. Snippets have no logs: watch the Worker's daily requests in `workersInvocationsAdaptive` (GraphQL) drop instead.
 
 **DOMAIN secret:**
 - Set via `wrangler secret put DOMAIN`
