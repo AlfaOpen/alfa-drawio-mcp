@@ -119,6 +119,13 @@ const answered =
     headers: Object.assign({ "content-type": "application/json", "mcp-session-id": SESSION }, CORS),
   },
   {
+    name: "ping with an upper-case Content-Type and a charset",
+    spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "Application/JSON; charset=utf-8" }),
+    status: 200,
+    body: "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":1}",
+    headers: Object.assign({ "content-type": "application/json", "mcp-session-id": SESSION }, CORS),
+  },
+  {
     name: "notifications/initialized",
     spec: post({ jsonrpc: "2.0", method: "notifications/initialized" }),
     status: 202,
@@ -203,9 +210,18 @@ const forwarded =
   { name: "a batch", spec: post([{ jsonrpc: "2.0", id: 1, method: "ping" }]) },
   { name: "invalid JSON", spec: post("{\"jsonrpc\":\"2.0\",") },
   { name: "a non-JSON content type", spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "text/plain" }) },
+  // The SDK parses the media type (a 415 for each of these), so a substring
+  // match on application/json is not enough.
+  { name: "application/json only in a parameter", spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "text/plain; a=application/json" }) },
+  { name: "a media type that starts with application/json", spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "application/json-rpc" }) },
+  { name: "joined Content-Type headers", spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "application/json, text/plain" }) },
   { name: "a body without a length", spec: post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-length": "" }) },
   { name: "a body over the size limit", spec: post({ jsonrpc: "2.0", id: 1, method: "ping", params: { pad: "x".repeat(2000) } }) },
   { name: "a fractional id", spec: post({ jsonrpc: "2.0", id: 1.5, method: "ping" }) },
+  // The SDK's zod .int() takes safe integers only (a 400 for these).
+  { name: "an id beyond the safe integers", spec: post("{\"jsonrpc\":\"2.0\",\"id\":9007199254740994,\"method\":\"ping\"}") },
+  { name: "a progressToken beyond the safe integers", spec: post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\",\"params\":{\"_meta\":{\"progressToken\":9007199254740994}}}") },
+  { name: "a notification with a progressToken beyond the safe integers", spec: post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{\"_meta\":{\"progressToken\":9007199254740994}}}") },
   { name: "a null id", spec: post({ jsonrpc: "2.0", id: null, method: "ping" }) },
   { name: "an extra top-level key", spec: post({ jsonrpc: "2.0", id: 1, method: "ping", extra: true }) },
   { name: "params that are not an object", spec: post({ jsonrpc: "2.0", id: 1, method: "ping", params: [] }) },

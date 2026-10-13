@@ -71,7 +71,7 @@ The Worker serves `/mcp` **statelessly**: every request gets its own `createServ
 - `GET` (405), `HEAD` (405), `DELETE` (200, or 400 without a session) and `OPTIONS` (204) on `/mcp`
 - OAuth/OIDC discovery probes (`/.well-known/oauth-*`, `/.well-known/openid-configuration`, `/mcp/.well-known/…`: 404)
 
-Everything else is passed on with `fetch(request)` and reaches the Worker unchanged. That includes `initialize`, `tools/*` and `resources/*`, batches, bodies over 1 KB or of unknown length, SSE-only clients, unknown `mcp-protocol-version`s and any message the SDK's strict JSON-RPC schemas might reject. Every reply the snippet makes carries `x-drawio-mcp-edge: snippet`.
+Everything else is passed on with `fetch(request)` and reaches the Worker unchanged. That includes `initialize`, `tools/*` and `resources/*`, batches, bodies over 1 KB or of unknown length, a Content-Type whose media type isn't `application/json` (the SDK parses it, so `text/plain; a=application/json` gets its 415), SSE-only clients, unknown `mcp-protocol-version`s and any message the SDK's strict JSON-RPC schemas might reject (ids and progress tokens must be safe integers). Every reply the snippet makes carries `x-drawio-mcp-edge: snippet`.
 
 **Why:** Copilot CLI pings each open session every 21 s, forever, so windows left open keep pinging. In October 2026 that was ~71% of all Worker requests. Worker requests had grown from 2.3M a day (2026-09-29) to 7.1M a day (2026-10-12), and an 88 s `wrangler tail` sample put ~85% of them in the categories above.
 

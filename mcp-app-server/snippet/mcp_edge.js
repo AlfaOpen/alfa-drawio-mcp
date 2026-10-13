@@ -60,17 +60,31 @@ function isPlainObject(value)
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** The SDK's zod `.int()` takes safe integers only. */
 function isIdOrToken(value)
 {
-  return typeof value === "string" || Number.isInteger(value);
+  return typeof value === "string" || Number.isSafeInteger(value);
+}
+
+/**
+ * Whether the SDK takes this Content-Type as application/json. It compares the
+ * parsed media type, never a substring (`text/plain; a=application/json` and
+ * `application/json-rpc` get its 415), so this accepts a subset of what it
+ * does: the part before the first ";", trimmed and lowercased, and no comma
+ * anywhere (joined duplicate headers, which it can reject).
+ */
+function isJsonContentType(value)
+{
+  return value.split(";", 1)[0].trim().toLowerCase() === "application/json" && !value.includes(",");
 }
 
 /**
  * Whether the SDK accepts this as a JSON-RPC request (`hasId`) or
  * notification: its schemas are strict about the top-level keys, take a
- * string or integer id, and an object for params whose _meta, if any, holds
- * a string or integer progressToken. Stricter than the SDK where that is
- * simpler (the related-task _meta key) — anything unusual goes to the Worker.
+ * string or safe integer id, and an object for params whose _meta, if any,
+ * holds a string or safe integer progressToken. Stricter than the SDK where
+ * that is simpler (the related-task _meta key) — anything unusual goes to the
+ * Worker.
  */
 function isValidMessage(message, hasId)
 {
@@ -116,7 +130,7 @@ async function answerPost(request, session)
 
   // An unknown length, a big body, a non-JSON one or an SSE-only client
   // (whose answer would be an event stream) all go to the Worker.
-  if (!(length > 0 && length <= MAX_BODY_BYTES) || !contentType.includes("application/json") ||
+  if (!(length > 0 && length <= MAX_BODY_BYTES) || !isJsonContentType(contentType) ||
     (accept.includes("text/event-stream") && !accept.includes("application/json")))
   {
     return null;
