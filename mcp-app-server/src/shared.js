@@ -6706,8 +6706,8 @@ var XML_OPTION_VALUES =
  * @param {string} html - The pre-built, self-contained HTML string.
  * @param {object} [options] - Options.
  * @param {string} [options.domain] - Widget domain for ChatGPT sandbox rendering (e.g. "https://mcp.draw.io").
- * @param {string} [options.xmlReference] - XML generation reference text for the tool description.
- * @param {string} [options.mermaidReference] - Mermaid syntax reference text appended to the tool description.
+ * @param {string} [options.xmlReference] - XML generation reference, returned by get_drawio_reference for format "xml".
+ * @param {string} [options.mermaidReference] - Mermaid syntax reference, returned by get_drawio_reference for format "mermaid".
  * @param {Array} [options.shapeIndex] - Shape search index array from search-index.json.
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
@@ -6747,54 +6747,30 @@ export function createServer(html, options = {})
     "create_diagram",
     {
       title: "Create Diagram",
+      // Short on purpose: the references are served by get_drawio_reference.
+      // Appended here they made this description ~55k characters, too long
+      // for clients that index descriptions — VS Code Copilot embeds them in
+      // batches for its tool search, and one oversized description fails the
+      // whole batch, other servers' tools included (jgraph/drawio-mcp#76).
+      // test/tools.test.js caps every description at 2048 characters.
       description:
-        "Creates and displays an interactive draw.io diagram. Accepts either draw.io XML or Mermaid.js syntax — provide exactly one.\n\n" +
-        "**Format decision — this is the first thing to settle before you write anything:** if the diagram type appears on the Mermaid list below, use `mermaid`. Only use `xml` when the diagram type isn't on that list (UI mockups, floorplans, cloud/network/electrical architecture with stencils, hand-placed UML, etc.) or when the user has explicitly asked for draw.io XML.\n\n" +
-        "**Use Mermaid** for the following diagram types (all rendered natively, no upstream mermaid runtime):\n" +
-        "  - flowchart / graph (TD, LR, …)\n" +
-        "  - sequenceDiagram\n" +
-        "  - classDiagram\n" +
-        "  - stateDiagram / stateDiagram-v2\n" +
-        "  - erDiagram\n" +
-        "  - gantt\n" +
-        "  - pie\n" +
-        "  - journey (user-journey)\n" +
-        "  - gitGraph\n" +
-        "  - mindmap\n" +
-        "  - timeline\n" +
-        "  - quadrantChart\n" +
-        "  - xychart-beta\n" +
-        "  - sankey-beta\n" +
-        "  - requirementDiagram\n" +
-        "  - C4Context / C4Container / C4Component\n" +
-        "  - block-beta\n" +
-        "  - architecture-beta\n" +
-        "  - packet-beta\n" +
-        "  - kanban\n" +
-        "  - radar-beta\n" +
-        "  - treemap-beta\n" +
-        "  - treeview-beta (draw.io-specific)\n" +
-        "  - venn (draw.io-specific) — syntax: `venn` then `set A [\"Label\"]` for each set, `union A,B` for declared overlaps (informational), and `text A` / `text A,B` followed by `[\"Region label\"]` for text inside a region. Do NOT use `A AND B[...]` or `A[\"...\"]` shorthand — those lines are ignored.\n" +
-        "  - ishikawa (draw.io-specific)\n" +
-        "  - zenuml\n" +
-        "**Strong default: use Mermaid for every diagram type on that list above.** Mermaid is simpler, more reliable, and the native Mermaid layout handles positioning and routing for you. For a flowchart, state diagram, sequence, ER, class, gantt, gitGraph, mindmap, etc. — reach for the `mermaid` parameter, not `xml`. Do not default to XML for flowcharts.\n\n" +
-        "**Use XML** when the diagram type isn't on the Mermaid list above OR when the user explicitly asks for XML / draw.io format. Typical cases where XML is the right choice:\n" +
-        "- **UI mockups / wireframes / screen designs** — buttons, form fields, sidebars, modal dialogs (`shape=mxgraph.bootstrap.*`, `shape=mxgraph.ios.*`, `shape=mxgraph.android.*`)\n" +
-        "- **Floor plans / seating charts / room layouts** — rooms, doors, furniture (`shape=mxgraph.floorplan.*`)\n" +
-        "- **Cloud architecture** with AWS / Azure / GCP / Kubernetes icons (`shape=mxgraph.aws4.*`, `shape=mxgraph.azure.*`, `shape=mxgraph.gcp2.*`, `shape=mxgraph.kubernetes.*`)\n" +
-        "- **Network topology** with Cisco / Rack / networking shapes (`shape=mxgraph.cisco*.*`, `shape=mxgraph.rack.*`, `shape=mxgraph.networking.*`)\n" +
-        "- **P&ID / electrical / engineering schematics** (`shape=mxgraph.pid2.*`, `shape=mxgraph.electrical.*`, `shape=mxgraph.mscae.*`)\n" +
-        "- **Swimlanes / pools** with custom colors and hand-placed contents\n" +
-        "- **UML class / component / deployment diagrams** where positioning carries meaning\n" +
-        "- **Venn diagrams, quadrant charts, concept maps** with custom regions — anything where hand-placed geometry is the point\n" +
-        "- **Any diagram requiring specific colors, fonts, stencils, or layouts** that Mermaid can't control precisely\n" +
-        "Call `search_shapes` first when you need industry icons (AWS / Azure / Cisco / P&ID / Kubernetes / floorplan / mockup / electrical) or brand logos / pictorial concept icons (e.g. 'react', 'slack', 'shopping cart') to find the correct `style` string for each shape.\n\n" +
-        "---\n\n" +
-        "**XML reasoning discipline (applies ONLY when you chose XML — skip this whole section if you're using Mermaid):** Your job in XML is declaring logical structure — nodes, edges, labels, groupings. Follow these steps in order: (1) **Decide `postLayout` and `routing` FIRST, before writing any XML.** If the XML diagram is a flowchart, state diagram, decision tree, or any directional/hierarchical process diagram (which you should rarely be writing as XML — prefer Mermaid), you MUST pass `postLayout: \"elk\"` (add `direction: \"horizontal\"` when the flow is drawn left-to-right; it defaults to vertical). Omit `postLayout` only when the layout carries hand-crafted meaning (swimlanes, containers, architecture, UML) — the typical reason you chose XML in the first place. When `postLayout` is set, your x/y coordinates only need to express rough direction; ELK re-lays out the vertices. For those hand-placed diagrams where you omit `postLayout`, consider `routing: \"libavoid\"` — it leaves your positions untouched and only routes the edges around the boxes in clean right angles (set it whenever connectors would otherwise overlap or cut through shapes). Treat `postLayout` and `routing` as alternatives: ELK already routes its own edges, so if you set `postLayout: \"elk\"` do NOT also set `routing` (redundant); use `routing` only on a hand-placed layout where you are NOT re-laying-out with ELK. (2) Pick ONE concrete scenario on your first impulse and commit — do not pitch alternatives, do not flip-flop between approaches. (3) Use the rigid grid in the XML reference (`x = col*180 + 40`, `y = row*120 + 40`) without computing spacings, canvas dimensions, or overlap checks. (4) Never add `<Array as=\"points\">` waypoints or `exitX/exitY/entryX/entryY` — when postLayout or routing runs it sets them; otherwise drawio's edge router handles it. (5) Do NOT narrate in your reasoning: no \"building the diagram\", no column enumeration, no coordinate math in prose, no coordinate re-verification after placement. Go straight to XML.\n\n" +
-        "**User preference override — XML only.** If the user expresses a preference for draw.io XML over Mermaid in any phrasing (examples: \"no mermaid\", \"skip mermaid\", \"use xml\", \"I want drawio format\", \"stop using mermaid\", \"give me the xml\", \"native drawio only\", etc.), from that point onward in the conversation you MUST use the `xml` parameter exclusively and MUST NOT use the `mermaid` parameter, even for diagram types where Mermaid would normally be preferable. This preference persists for the remainder of the conversation unless the user clearly reverses it (e.g. \"mermaid is fine again\"). When the preference is active, translate any diagram request — including flowcharts, sequence diagrams, ER diagrams, etc. — directly to well-formed mxGraphModel XML.\n\n" +
-        "When using XML: IMPORTANT — the XML must be well-formed. Do NOT include ANY XML comments (<!-- -->) in the output.\n\n" +
-        xmlReference +
-        (mermaidReference ? "\n\n---\n\n" + mermaidReference : ""),
+        "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one.\n\n" +
+        "**Choose the format first.** Use `mermaid` for every type it has a header for: flowchart/graph, sequenceDiagram, classDiagram, " +
+        "stateDiagram-v2, erDiagram, gantt, pie, journey, gitGraph, mindmap, timeline, quadrantChart, xychart-beta, sankey-beta, " +
+        "requirementDiagram, C4Context/C4Container/C4Component, block-beta, architecture-beta, packet-beta, kanban, radar-beta, " +
+        "treemap-beta, treeView-beta, venn-beta, ishikawa-beta, zenuml, wardley-beta, eventmodeling. Don't write flowcharts as XML. " +
+        "Use `xml` for everything else (UI mockups, floor plans, cloud/network/P&ID/electrical diagrams with stencils, swimlanes, " +
+        "UML with deliberate placement, exact positions or colors) and whenever the user asks for draw.io XML or no Mermaid; " +
+        "then keep using XML for the rest of the conversation.\n\n" +
+        "**Call `get_drawio_reference` before your first diagram in a conversation**, once per format, with the format you chose: " +
+        "\"mermaid\" has the syntax for every type (a misspelled header renders blank), \"xml\" the styles, layout grid, edges, " +
+        "containers, layers and dark mode. Call `search_shapes` first for industry icons (AWS, Azure, GCP, Cisco, Kubernetes, " +
+        "P&ID, electrical) or logos.\n\n" +
+        "XML essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. " +
+        "Every cell has a unique id. Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
+        "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
+        "Put html=1 in every style and XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
+        "Don't add waypoints: set `postLayout: \"elk\"` for flowchart-like XML, `routing: \"libavoid\"` for a hand-placed layout.",
       inputSchema:
       {
         xml: z
@@ -6807,7 +6783,7 @@ export function createServer(html, options = {})
           .string()
           .optional()
           .describe(
-            "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 26 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
+            "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
           ),
         postLayout: z
           .enum(XML_OPTION_VALUES.postLayout)
@@ -7044,6 +7020,66 @@ export function createServer(html, options = {})
       }
     );
   }
+
+  // ── get_drawio_reference tool ────────────────────────────────────────────────
+
+  // The references the create_diagram description used to carry (see there).
+  const references =
+  {
+    xml: xmlReference,
+    mermaid: mermaidReference,
+  };
+
+  registerAppTool(
+    server,
+    "get_drawio_reference",
+    {
+      title: "Get draw.io Reference",
+      description:
+        "Returns the draw.io diagram generation reference as Markdown. Format \"xml\": styles, the layout grid, " +
+        "edges, containers, swimlanes, layers, tags, metadata, dark mode, the layout and routing passes, and the " +
+        "well-formedness rules for create_diagram's xml. Format \"mermaid\": the header keyword and syntax hints for " +
+        "every Mermaid type draw.io supports, flowchart styling and the ELK layout. Call it once per format and " +
+        "conversation, before the first diagram in that format; the reference stays valid for the rest of the " +
+        "conversation.",
+      inputSchema:
+      {
+        format: z
+          .enum(["xml", "mermaid"])
+          .describe(
+            "Which reference to return: \"xml\" or \"mermaid\", matching the create_diagram parameter you will use."
+          ),
+      },
+      // No outputSchema: structuredContent would repeat the whole reference
+      // beside the text block.
+      annotations:
+      {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta:
+      {
+        "openai/toolInvocation/invoking": "Reading the draw.io reference...",
+        "openai/toolInvocation/invoked": "Reference loaded.",
+      },
+    },
+    async function({ format })
+    {
+      if (!references[format])
+      {
+        return {
+          content: [{ type: "text", text: "The " + format + " reference is not available on this server." }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: references[format] }],
+      };
+    }
+  );
 
   registerAppResource(
     server,

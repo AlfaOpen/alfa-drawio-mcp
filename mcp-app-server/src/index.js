@@ -134,9 +134,9 @@ const xmlReference = fs.readFileSync(
   "utf-8"
 );
 
-// Same for the Mermaid syntax reference — appended to the create_diagram
-// tool description so the LLM gets concrete per-type syntax hints for
-// every supported Mermaid diagram plus flowchart styling guidance.
+// Same for the Mermaid syntax reference — returned by get_drawio_reference
+// so the LLM gets concrete per-type syntax hints for every supported
+// Mermaid diagram plus flowchart styling guidance.
 const mermaidReference = fs.readFileSync(
   path.join(__dirname, "..", "..", "shared", "mermaid-reference.md"),
   "utf-8"

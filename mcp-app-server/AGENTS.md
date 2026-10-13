@@ -95,10 +95,12 @@ Doing it here rather than inside the layout keeps `postLayout` free of hierarchy
 
 ## XML and Mermaid References
 
-The tool description for `create_diagram` is composed at startup from two canonical reference files in `shared/`:
+The `get_drawio_reference` tool (`{ format: "xml" | "mermaid" }`) returns one of two canonical reference files in `shared/`, verbatim:
 
-- **`shared/xml-reference.md`** — loaded as the `xmlReference` option on `createServer()`; covers draw.io XML styles, edge routing, containers, metadata.
-- **`shared/mermaid-reference.md`** — loaded as the `mermaidReference` option; covers syntax for all 26 supported Mermaid diagram types plus flowchart styling (`style`, `classDef`, `linkStyle`). Appended after the XML reference in the final description.
+- **`shared/xml-reference.md`** — loaded as the `xmlReference` option on `createServer()`; covers draw.io XML styles, the layout grid, edge routing, containers, metadata.
+- **`shared/mermaid-reference.md`** — loaded as the `mermaidReference` option; covers syntax for all 28 supported Mermaid diagram types plus flowchart styling (`style`, `classDef`, `linkStyle`).
+
+The `create_diagram` description stays short (~1.8k characters): the Mermaid-vs-XML decision with every Mermaid header keyword, the XML essentials, and an instruction to call `get_drawio_reference` once per format before the first diagram. Through app server 1.0.6 it carried both references (~55k characters), which broke VS Code Copilot's tool search: Copilot embeds tool descriptions in batches, and one description over the embedding limit fails the whole batch, other servers' tools included ([#76](https://github.com/jgraph/drawio-mcp/issues/76)). `test/tools.test.js` (`npm test`) caps every tool description at 2048 characters and checks that the tool returns both files. Guidance that only matters once a format is chosen belongs in the references, not in the description.
 
 For the Cloudflare Worker, both files are pre-built into `generated-html.js` (exported as named strings) by `build-html.js` and re-imported by `worker.js`. The Node.js path reads them directly from `shared/` at startup.
 
@@ -147,12 +149,6 @@ Debug logging is **off by default**. Enable via `wrangler secret put DEBUG` (set
 Unexpected exceptions are always logged (`[error]`, with the stack) and answered with a JSON-RPC `500`.
 
 **Note:** At high traffic, `wrangler tail` enters sampling mode and drops messages. Use `wrangler tail --format json | grep` to filter for specific methods.
-
-## Known Issues (as of 2026-03-23)
-
-- **Server works end-to-end via curl** — all 6 MCP protocol steps succeed (initialize → notifications/initialized → tools/list → resources/list → resources/read → tools/call)
-- **Claude.ai never sends `resources/read` or `tools/call`** — completes the handshake (through `resources/subscribe`) but stops. This is a Claude.ai-side issue, not a server bug
-- **MCP Apps for custom connectors** may not be fully supported on Claude.ai yet. Contact `mcp-apps@anthropic.com` for status
 
 ## Scripts
 

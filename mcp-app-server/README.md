@@ -14,7 +14,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `xml` | string | One of `xml` / `mermaid` | draw.io XML in mxGraphModel format. Mutually exclusive with `mermaid`. |
-| `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (26 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
+| `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (28 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
 | `postLayout` | enum | No | Optional ELK layered-flow pass applied after render. Only value: `"elk"`. Vertex positions are replaced; only edge topology survives. |
 | `direction` | enum | No | XML-only flow direction for `postLayout: "elk"`: `"vertical"` (default) or `"horizontal"`. Ignored for Mermaid (direction comes from the `flowchart TD/LR` code). |
 
@@ -26,6 +26,14 @@ The rendered diagram includes:
 - "Open in draw.io" button to edit the diagram in the full editor
 - Fullscreen mode
 
+## Tool: `get_drawio_reference`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `format` | enum | Yes | `"xml"` returns [`shared/xml-reference.md`](../shared/xml-reference.md), `"mermaid"` returns [`shared/mermaid-reference.md`](../shared/mermaid-reference.md), verbatim. |
+
+The `create_diagram` description tells the model to call this once per format before its first diagram in a conversation. The references used to be part of that description, which made it about 55,000 characters, too long for clients that index tool descriptions, such as VS Code Copilot's tool search ([#76](https://github.com/jgraph/drawio-mcp/issues/76)).
+
 ## Official Hosted Endpoint
 
 The official draw.io MCP App server is hosted at:
@@ -34,9 +42,34 @@ The official draw.io MCP App server is hosted at:
 https://mcp.draw.io/mcp
 ```
 
-Add this URL as a remote MCP server in Claude.ai, Cursor, or any MCP Apps-compatible host — no installation or setup required.
+Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copilot), Cursor, or any MCP Apps-compatible host — no installation or setup required.
 
-> **Note:** This server renders diagrams **inline** via the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) protocol, so it requires an MCP Apps–capable host (e.g. Claude.ai or Cursor). In hosts that don't support MCP Apps — such as **VS Code / GitHub Copilot** or Claude Code — the tool connects but has nothing to render, so the diagram won't appear. For those clients use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server instead, which opens diagrams in the browser. ChatGPT isn't supported yet: its connectors are remote-only and use OpenAI's own widget format rather than MCP Apps, so the diagram won't render inline — and unlike the editors above, the stdio fallback can't be used.
+> **Note:** Diagrams appear **inline**, right in the chat, in hosts that support [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps): Claude.ai, ChatGPT, VS Code with GitHub Copilot (1.109 or later) and Cursor (2.6 or later). In other hosts, such as Claude Code, the server answers with a link that opens the diagram in draw.io. If you'd rather have diagrams open in your browser automatically, use the stdio [`@drawio/mcp`](../mcp-tool-server) tool server.
+
+### Using with ChatGPT
+
+1. Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, then **Add custom MCP server**.
+2. Enter a name, for example *draw.io*, and under **Connection** the URL `https://mcp.draw.io/mcp`. The server needs no sign-in, so leave authentication off.
+3. Confirm the warning with **I understand and want to continue**, select **Create as a plugin**, and install it.
+
+In a new conversation, type `@`, pick draw.io, and ask for a diagram. If the option to add a custom MCP server is missing, your workspace admin may have turned it off.
+
+### Using with VS Code
+
+VS Code 1.109 and later shows diagrams inline in GitHub Copilot Chat. Add the server to `.vscode/mcp.json` in your workspace, or run **MCP: Open User Configuration** to add it for every workspace:
+
+```json
+{
+  "servers": {
+    "drawio": {
+      "type": "http",
+      "url": "https://mcp.draw.io/mcp"
+    }
+  }
+}
+```
+
+Click **Start** above the server entry, confirm that you trust the folder if VS Code asks, then ask Copilot Chat in **Agent** mode to create a diagram.
 
 ### Using with Cursor
 
@@ -140,7 +173,7 @@ Add to your Claude Desktop config:
 }
 ```
 
-> **Note:** Inline diagram rendering requires an MCP host that supports the MCP Apps extension. In hosts without MCP Apps support, the tool still works but returns the XML as text.
+> **Note:** Diagrams appear inline in hosts that support the MCP Apps extension. In other hosts the tool still works and answers with a link that opens the diagram in draw.io.
 
 ## Deploying to Cloudflare Workers
 
@@ -211,14 +244,17 @@ src/
   shared.js          Shared logic: buildHtml(), processAppBundle(), createServer()
   index.js           Node.js entry (Express + stdio transports)
   worker.js          Cloudflare Workers entry (Web Standard fetch handler)
-  build-html.js      Build script: generates generated-html.js + xml reference
-  generated-html.js  (gitignored) Pre-built HTML string + XML reference for the Worker
+  build-html.js      Build script: generates generated-html.js + the references
+  generated-html.js  (gitignored) Pre-built HTML string + references for the Worker
+test/
+  tools.test.js      Tool description length cap + get_drawio_reference (npm test)
 wrangler.toml        Wrangler configuration
 ../shared/
-  xml-reference.md   Shared XML generation reference (single source of truth)
+  xml-reference.md      Shared XML generation reference (single source of truth)
+  mermaid-reference.md  Shared Mermaid syntax reference
 ```
 
-The `create_diagram` tool description is loaded from `shared/xml-reference.md` at startup (Node.js) or pre-built into `generated-html.js` at deploy time (Workers). This file is the single source of truth for XML generation guidance across all four approaches in the repository.
+The references `get_drawio_reference` returns are loaded from `shared/xml-reference.md` and `shared/mermaid-reference.md` at startup (Node.js) or pre-built into `generated-html.js` at deploy time (Workers). These files are the single source of truth for diagram generation guidance across all four approaches in the repository.
 
 ### How the HTML is built
 
