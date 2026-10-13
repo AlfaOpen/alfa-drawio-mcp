@@ -125,6 +125,16 @@ cd mcp-app-server/openai-plugin && zip -r "${TMPDIR:-/tmp}/drawio-openai-plugin.
   privacy page, rewritten descriptions, icon, `.mcp.json`, category
   Creativity. Metadata: no issues; MCP scan: no issues; domain already
   verified (the challenge token is per domain, not per plugin — no redeploy).
+- **1.0.1 resubmitted (2026-10-13).** After 12 days in review, app server 1.1.0
+  (new `get_drawio_reference`, short `create_diagram` description, Google
+  fonts CSP) went to production, so the review was cancelled (**Cancel review**
+  returns the plugin to draft; "Your published version will stay published"),
+  the MCP server rescanned, and 1.0.1 submitted again. The rescan alone left a
+  "Complete MCP setup" finding: it cleared after **MCP actions (…) → Reconnect →
+  Reconnect → Continue** and a second **Rescan** (three tools, no findings).
+  Review information lives under the header **… → Edit review information**
+  (the Submit dialog only has the six acknowledgments); only the test cases'
+  "Tool triggered" column changed.
 
 When the privacy page changes, keep it in step with what the server does:
 tool inputs/outputs, the icon-service forwarding (`search_shapes` →
@@ -205,18 +215,18 @@ commands/agents, no live-artifact instructions.
 - Draw an AWS architecture diagram for a serverless image pipeline.
 - Turn this Mermaid sequence diagram into an editable draw.io diagram.
 
-### Testing — five positive cases (as submitted for 1.0.1)
+### Testing — five positive cases (as resubmitted for 1.0.1, 2026-10-13)
 
 Portal fields per case: scenario (200 chars), user prompt (500, single line),
 tool triggered (200), expected output (300).
 
 | # | Scenario | User prompt | Tool triggered | Expected output |
 |---|---|---|---|---|
-| 1 | Flowchart with a decision branch, from a plain-language description | Use draw.io to create a flowchart for a user login flow, including the password-reset branch. | create_diagram | An interactive flowchart rendered inline: login steps, a valid/invalid password decision and a password-reset branch, with zoom, pan and an Open in draw.io button. Clients without inline UI get an app.diagrams.net link instead. |
-| 2 | Cloud architecture diagram using the official AWS icons (shape search, then diagram) | Use draw.io to draw an AWS architecture diagram: CloudFront to S3, and API Gateway to Lambda to DynamoDB, with the official AWS icons. | search_shapes, then create_diagram | search_shapes returns AWS shape styles for CloudFront, S3, API Gateway, Lambda and DynamoDB; create_diagram renders the architecture inline with those icons and arrows between them, editable in draw.io. |
-| 3 | Sequence diagram from a description | Use draw.io to draw a sequence diagram: the browser sends a login request to the API, the API checks the password with the auth service, and the API returns a session token to the browser. | create_diagram | An inline sequence diagram with three participants (Browser, API, Auth service) and the login request, password check and session token messages in order. |
-| 4 | Entity-relationship diagram | Use draw.io to make an ER diagram for a bookstore with customers, orders and books. | create_diagram | An inline ER diagram with Customer, Order and Book entities, their key attributes, and relationships: a customer places orders, and an order contains books. |
-| 5 | Hand-placed layout with a connector routed around a shape | Use draw.io to place Web, Cache and DB as three boxes side by side and connect Web to DB. The connector must route around the Cache box, not through it. | create_diagram | Three boxes in one row in the given order. The Web to DB connector is orthogonal and goes around the Cache box instead of crossing it. |
+| 1 | Flowchart with a decision branch, from a plain-language description | Use draw.io to create a flowchart for a user login flow, including the password-reset branch. | get_drawio_reference, then create_diagram | An interactive flowchart rendered inline: login steps, a valid/invalid password decision and a password-reset branch, with zoom, pan and an Open in draw.io button. Clients without inline UI get an app.diagrams.net link instead. |
+| 2 | Cloud architecture diagram using the official AWS icons (shape search, then diagram) | Use draw.io to draw an AWS architecture diagram: CloudFront to S3, and API Gateway to Lambda to DynamoDB, with the official AWS icons. | search_shapes and get_drawio_reference, then create_diagram | search_shapes returns AWS shape styles for CloudFront, S3, API Gateway, Lambda and DynamoDB; create_diagram renders the architecture inline with those icons and arrows between them, editable in draw.io. |
+| 3 | Sequence diagram from a description | Use draw.io to draw a sequence diagram: the browser sends a login request to the API, the API checks the password with the auth service, and the API returns a session token to the browser. | get_drawio_reference, then create_diagram | An inline sequence diagram with three participants (Browser, API, Auth service) and the login request, password check and session token messages in order. |
+| 4 | Entity-relationship diagram | Use draw.io to make an ER diagram for a bookstore with customers, orders and books. | get_drawio_reference, then create_diagram | An inline ER diagram with Customer, Order and Book entities, their key attributes, and relationships: a customer places orders, and an order contains books. |
+| 5 | Hand-placed layout with a connector routed around a shape | Use draw.io to place Web, Cache and DB as three boxes side by side and connect Web to DB. The connector must route around the Cache box, not through it. | get_drawio_reference, then create_diagram | Three boxes in one row in the given order. The Web to DB connector is orthogonal and goes around the Cache box instead of crossing it. |
 
 No test accounts, credentials or fixture data are required — every case runs
 against the public endpoint anonymously.
