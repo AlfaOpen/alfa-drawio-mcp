@@ -1,11 +1,13 @@
 ---
 name: drawio
-description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF.
+description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF. Exception: in a chat panel that shows diagrams inline (VS Code or Cursor chat, Claude.ai, ChatGPT) where the draw.io MCP server's create_diagram tool is available, call that tool instead, unless the user asks for a file or an export.
 ---
 
 # Draw.io Diagram Skill
 
 Generate draw.io diagrams as native `.drawio` files. Author each diagram either as **Mermaid** (concise text that the draw.io desktop CLI converts and lays out for you) or as **draw.io XML** directly. Optionally auto-layout XML-authored diagrams with **ELK**, export to PNG/SVG/PDF with the diagram XML embedded (so the exported file stays editable in draw.io), or generate a browser URL that opens the diagram directly in the draw.io editor.
+
+**Inline viewer first.** This skill writes files and opens them with a shell command. If the draw.io MCP server's `create_diagram` tool is available in a chat panel that shows diagrams inline (VS Code or Cursor chat, Claude.ai, ChatGPT), and the user hasn't asked for a `.drawio` file, an export or a URL, call `create_diagram` instead: the diagram appears in the conversation, with no file and no shell command.
 
 ## Authoring: Mermaid or XML?
 
