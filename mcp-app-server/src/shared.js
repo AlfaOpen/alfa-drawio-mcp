@@ -7,10 +7,10 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import pako from "pako";
-import { normalizeDiagramXml, absolutizeImageUrls, INVALID_DIAGRAM_XML_MESSAGE } from "./normalize-diagram-xml.js";
+import { normalizeDiagramXml, normalizeOptionValue, absolutizeImageUrls, INVALID_DIAGRAM_XML_MESSAGE } from "./normalize-diagram-xml.js";
 import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
-import { withElkLayout, isFlowchartSource } from "../../shared/mermaid-elk.js";
+import { withElkLayout, isFlowchartSource, mermaidDiagramType } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
@@ -478,6 +478,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
     <script>
 ${appWithDepsJs}
 ${normalizeDiagramXml.toString()}
+${normalizeOptionValue.toString()}
 ${absolutizeImageUrls.toString()}
 
 // --- XML healing for partial/streaming XML ---
@@ -5809,12 +5810,36 @@ function handleMermaidPartial(partialMermaid)
   }
 }
 
+// Where the draw.io XML starts in a tool argument, -1 when there is none. Text
+// a model writes before the diagram (a code fence, a sentence) is skipped from
+// here; the server's repair drops it from the result.
+function diagramXmlStart(text)
+{
+  var file = text.indexOf('<mxfile');
+  var model = text.indexOf('<mxGraphModel');
+
+  if (file === -1)
+  {
+    return model;
+  }
+
+  return (model === -1) ? file : Math.min(file, model);
+}
+
+// draw.io XML passed as mermaid: the server draws it as XML, so the Mermaid
+// paths leave it to the result.
+function isXmlInMermaid(text)
+{
+  return text.trim().charAt(0) === '<' || diagramXmlStart(text) !== -1;
+}
+
 app.ontoolinputpartial = function(params)
 {
   // Mermaid streaming
   var partialMermaid = params.arguments && params.arguments.mermaid;
 
-  if (partialMermaid != null && typeof partialMermaid === 'string')
+  if (partialMermaid != null && typeof partialMermaid === 'string' &&
+      !isXmlInMermaid(partialMermaid))
   {
     handleMermaidPartial(partialMermaid);
 
@@ -5844,7 +5869,8 @@ app.ontoolinputpartial = function(params)
       {
         mermaidEarlyFinalizeFired = true;
         // Mermaid path: direction comes from the flowchart code, not args.direction.
-        var earlyPostLayout = resolvePostLayout(args.postLayout, args.direction, partialMermaid);
+        var earlyPostLayout = resolvePostLayout(normalizeOptionValue('postLayout', args.postLayout),
+          normalizeOptionValue('direction', args.direction), partialMermaid);
         var earlyOpts = {
           skipIntroAnim: true,
           fadeIn: true,
@@ -5875,6 +5901,13 @@ app.ontoolinputpartial = function(params)
   if (partialXml == null || typeof partialXml !== 'string')
   {
     return;
+  }
+
+  var partialStart = diagramXmlStart(partialXml);
+
+  if (partialStart > 0)
+  {
+    partialXml = partialXml.substring(partialStart);
   }
 
   var healedXml = healPartialXml(partialXml);
@@ -5994,13 +6027,21 @@ app.ontoolinput = function(params)
   // For Mermaid, direction is derived from the flowchart code; for XML, from
   // the optional direction field. resolvePostLayout maps elk to vertical or
   // horizontalFlow accordingly and passes other algorithms through.
-  var postLayout = resolvePostLayout(args.postLayout, args.direction,
+  var postLayout = resolvePostLayout(normalizeOptionValue('postLayout', args.postLayout),
+    normalizeOptionValue('direction', args.direction),
     (typeof mermaidText === 'string') ? mermaidText : null);
 
   var layoutOpts = { skipIntroAnim: true, fadeIn: true, postLayout: postLayout };
 
   if (mermaidText != null && typeof mermaidText === 'string')
   {
+    // draw.io XML passed as mermaid is drawn as XML by the server: the
+    // result renders it.
+    if (isXmlInMermaid(mermaidText))
+    {
+      return;
+    }
+
     mermaidPreviewEl.style.display = 'none';
     var mermaidOpts = Object.assign({}, layoutOpts, {
       replaceMode: true,
@@ -6026,6 +6067,17 @@ app.ontoolinput = function(params)
   {
     return;
   }
+
+  // No draw.io XML in it (Mermaid passed as xml, which the server draws as
+  // Mermaid, or nothing usable, which it reports): the result decides.
+  var xmlStart = diagramXmlStart(xml);
+
+  if (xmlStart === -1)
+  {
+    return;
+  }
+
+  xml = xml.substring(xmlStart);
 
   if (typeof GraphViewer === 'undefined')
   {
@@ -6131,6 +6183,8 @@ app.ontoolresult = function(result)
 
       if (normalizedXml)
       {
+        normalizedXml = normalizedXml.substring(diagramXmlStart(normalizedXml));
+
         // waitForGraphViewer ensures Graph/mxUtils/mxCodec are loaded
         // before the cold-start init path runs.
         waitForGraphViewer()
@@ -6813,6 +6867,43 @@ var XML_OPTION_VALUES =
   routing: ["libavoid"],
 };
 
+// An argument read through normalizeOptionValue before it is validated, so
+// null, "none", another case or LR/TB pass instead of failing the call.
+// z.preprocess advertises the schema it wraps, so tools/list doesn't change.
+// An optional schema goes inside: outside, .optional() lets only undefined
+// through and null would fail before it is mapped. A value the schema still
+// rejects goes on as the model wrote it, so the error quotes it.
+function lenient(name, schema)
+{
+  return z.preprocess(function(value)
+  {
+    var normalized = normalizeOptionValue(name, value);
+
+    return schema.safeParse(normalized).success ? normalized : value;
+  }, schema);
+}
+
+// The first words of the Mermaid diagram types draw.io converts, as
+// mermaidDiagramType returns them (lowercased). A Mermaid diagram passed as
+// create_diagram's xml is recognized by them; the list in the tool
+// description names the same types.
+var MERMAID_DIAGRAM_TYPES =
+[
+  "flowchart", "graph", "sequencediagram", "classdiagram", "classdiagram-v2",
+  "statediagram", "statediagram-v2", "erdiagram", "gantt", "pie", "journey",
+  "gitgraph", "mindmap", "timeline", "quadrantchart", "xychart", "xychart-beta",
+  "sankey", "sankey-beta", "requirementdiagram", "c4context", "c4container",
+  "c4component", "c4dynamic", "c4deployment", "block", "block-beta",
+  "architecture", "architecture-beta", "packet", "packet-beta", "kanban",
+  "radar", "radar-beta", "treemap", "treemap-beta", "treeview-beta",
+  "venn-beta", "ishikawa-beta", "zenuml", "wardley-beta", "eventmodeling",
+];
+
+function isMermaidSource(text)
+{
+  return MERMAID_DIAGRAM_TYPES.indexOf(mermaidDiagramType(text)) !== -1;
+}
+
 /**
  * Create a new MCP server instance with the create_diagram tool + UI resource.
  *
@@ -6898,23 +6989,17 @@ export function createServer(html, options = {})
           .describe(
             "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
           ),
-        postLayout: z
-          .enum(XML_OPTION_VALUES.postLayout)
-          .optional()
+        postLayout: lenient("postLayout", z.enum(XML_OPTION_VALUES.postLayout).optional())
           .describe(
             "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for directional/hierarchical diagrams: flowcharts, process diagrams, state diagrams, decision flows, pipelines, ER/class diagrams with clear parent→child direction. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
             "**Omit** for diagrams whose layout carries meaning you hand-crafted: swimlanes/pools, containers, architecture / deployment / network topology with grouped regions, P&ID or circuit schematics, floor plans, UML diagrams with deliberate placement.\n\n" +
             "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
           ),
-        direction: z
-          .enum(XML_OPTION_VALUES.direction)
-          .optional()
+        direction: lenient("direction", z.enum(XML_OPTION_VALUES.direction).optional())
           .describe(
             "**XML only** — the flow direction for `postLayout: \"elk\"` on XML diagrams: `vertical` (top-down) or `horizontal` (left-to-right). Defaults to `vertical`. **Ignored for Mermaid**, where direction is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`). Only meaningful together with `postLayout: \"elk\"`."
           ),
-        routing: z
-          .enum(XML_OPTION_VALUES.routing)
-          .optional()
+        routing: lenient("routing", z.enum(XML_OPTION_VALUES.routing).optional())
           .describe(
             "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes each edge's path so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them. Set it for XML diagrams where you have placed nodes deliberately (architecture, network topology, deployment, swimlanes, UML, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
             "draw.io's default router is basic (straight or simple right-angle lines with **no obstacle avoidance** — wires cut straight through any box between the endpoints), so reach for `\"libavoid\"` whenever edges would otherwise cross shapes or you want uniformly clean orthogonal wiring on a layout you placed yourself. Think of `routing` and `postLayout` as **alternatives**: use `routing: \"libavoid\"` to keep your positions and only fix the wires, or `postLayout: \"elk\"` to re-lay-out the vertices — and note ELK already routes its edges decently, so when you use `postLayout` you normally should **not** also set `routing` (the combination is redundant in almost all cases). Do not add `<Array as=\"points\">` waypoints yourself when routing is set; libavoid computes them. **Ignored for Mermaid** (its native/ELK layout already routes)."
@@ -6947,6 +7032,28 @@ export function createServer(html, options = {})
         };
       }
 
+      // A diagram passed under the other parameter is drawn as what it is:
+      // Mermaid in xml (no draw.io XML in it, and a known Mermaid header),
+      // or draw.io XML in mermaid. The model is told, so it passes the
+      // right one next time; the viewer skips its early render of these and
+      // waits for this result.
+      var swapNote = null;
+
+      if (hasXml && normalizeDiagramXml(xml) == null && isMermaidSource(xml))
+      {
+        mermaid = xml;
+        hasMermaid = true;
+        hasXml = false;
+        swapNote = "Note: the `xml` argument held Mermaid, so it was drawn as Mermaid. Pass Mermaid as `mermaid`.";
+      }
+      else if (hasMermaid && !isMermaidSource(mermaid) && normalizeDiagramXml(mermaid) != null)
+      {
+        xml = mermaid;
+        hasXml = true;
+        hasMermaid = false;
+        swapNote = "Note: the `mermaid` argument held draw.io XML, so it was drawn as XML. Pass draw.io XML as `xml`.";
+      }
+
       // Mermaid path: return JSON for client-side conversion
       if (hasMermaid)
       {
@@ -6955,6 +7062,11 @@ export function createServer(html, options = {})
         mermaidPayload._buildId = buildId;
 
         var mermaidContent = [{ type: "text", text: JSON.stringify(mermaidPayload) }];
+
+        if (swapNote != null)
+        {
+          mermaidContent.push({ type: "text", text: swapNote });
+        }
 
         appendOpenUrl(mermaidContent, await rendersInline(), mermaid, "mermaid",
           postLayout);
@@ -7011,6 +7123,11 @@ export function createServer(html, options = {})
       var content = [
         { type: "text", text: JSON.stringify(xmlPayload) }
       ];
+
+      if (swapNote != null)
+      {
+        content.push({ type: "text", text: swapNote });
+      }
 
       // Validate and append warnings/errors so the LLM can self-correct
       var validation = validateDiagramXml(normalizedXml);
@@ -7157,8 +7274,7 @@ export function createServer(html, options = {})
         "conversation.",
       inputSchema:
       {
-        format: z
-          .enum(["xml", "mermaid"])
+        format: lenient("format", z.enum(["xml", "mermaid"]))
           .describe(
             "Which reference to return: \"xml\" or \"mermaid\", matching the create_diagram parameter you will use."
           ),

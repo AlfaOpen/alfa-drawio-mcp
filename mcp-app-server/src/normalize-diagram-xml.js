@@ -68,15 +68,19 @@ export function normalizeDiagramXml(input)
     return null;
   }
 
+  // Text before the diagram (a code fence, a sentence) is kept here: the
+  // repair (shared/repair-xml.js) cuts it off. A string that starts like
+  // JSON is unwrapped first, since the XML inside it is still escaped.
   function getXmlCandidate(value)
   {
     if (typeof value === "string")
     {
       var trimmed = value.trim();
+      var first = trimmed.charAt(0);
 
       if (
         trimmed.length > 0 &&
-        trimmed.charAt(0) === "<" &&
+        first !== "{" && first !== "[" &&
         (trimmed.indexOf("<mxGraphModel") !== -1 || trimmed.indexOf("<mxfile") !== -1)
       )
       {
@@ -158,4 +162,52 @@ export function normalizeDiagramXml(input)
   }
 
   return getXmlCandidate(current);
+}
+
+/**
+ * Maps the values models write for create_diagram's options and
+ * get_drawio_reference's format to the ones the schemas accept: null, "",
+ * "none" and "off" mean the option is not set, case and surrounding space
+ * don't matter, the flowchart directions LR/RL and TB/TD/BT stand for
+ * horizontal and vertical, and "drawio" means the XML reference. Anything
+ * else is returned as it is, so the schema still rejects it and the model
+ * learns the real values.
+ *
+ * The server runs it before validating (z.preprocess, which leaves the
+ * advertised schema as it is), and the viewer on the raw tool input it
+ * renders before the result arrives.
+ *
+ * NOTE: inlined into the viewer HTML via toString(), so it must stay
+ * self-contained (no imports, no outer-scope references).
+ *
+ * @param {string} name - "postLayout", "direction", "routing" or "format"
+ * @param {unknown} value
+ * @returns {unknown} the accepted value, undefined for "not set"
+ */
+export function normalizeOptionValue(name, value)
+{
+  var synonyms =
+  {
+    direction: { lr: "horizontal", rl: "horizontal", tb: "vertical", td: "vertical", bt: "vertical" },
+    format: { drawio: "xml", "draw.io": "xml" },
+  };
+
+  if (value == null)
+  {
+    return undefined;
+  }
+
+  if (typeof value !== "string")
+  {
+    return value;
+  }
+
+  var key = value.trim().toLowerCase();
+
+  if (key === "" || key === "none" || key === "off")
+  {
+    return (name === "format") ? value : undefined;
+  }
+
+  return (synonyms[name] && synonyms[name][key]) || key;
 }

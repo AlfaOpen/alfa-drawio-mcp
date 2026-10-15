@@ -127,6 +127,8 @@ Doing it here rather than inside the layout keeps `postLayout` free of hierarchy
 - CSP config goes on the **resource contents** `_meta.ui.csp`, not on the tool's `_meta.ui`
 - `resourceDomains` includes `https://fonts.googleapis.com` and `https://fonts.gstatic.com` so Google fonts of `fontSource` styles load in the viewer (the font CSS is linked, it loads the font files) — e.g. the Recursive font of Mermaid 12 diagrams (`redux-color` theme)
 - TypeScript narrowing: use `if (block.type === "text")` before accessing `.text` on content blocks
+- To accept more than a schema advertises, wrap it in `z.preprocess` (`lenient` in `src/shared.js`): the JSON schema in `tools/list` stays byte-identical to the wrapped one, so a tool can get more forgiving without a new tool definition (which the OpenAI and Claude directory listings were reviewed against). Put `.optional()` inside the wrapper: outside, it lets only `undefined` through and `null` fails before it is mapped. The SDK (1.32) answers a value the schema rejects with an `isError` tool result ("Input validation error"), which the Claude directory counts as a tool error
+- The viewer renders from the raw tool input (`ontoolinputpartial`, `ontoolinput`) before the result arrives, so input the server corrects has to be read the same way there: `normalizeOptionValue` is inlined for the options, `diagramXmlStart` skips text before the XML, and a diagram under the other parameter is left to the result
 
 ## XML and Mermaid References
 
