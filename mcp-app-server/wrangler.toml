@@ -1,30 +1,21 @@
-name = "drawio-mcp-app"
+name = "drawio-mcp"
 main = "src/worker.js"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 # workers.dev name is disabled in CF for production; keep it off
 workers_dev = false
-
-# The dash-managed route only covers mcp.draw.io/mcp* — every other path the
-# Worker serves (/carousel/*, /health, ...) needs its own route or requests 522
-# against a nonexistent origin.
+preview_urls = true
+# The dash-managed route only covers mcp.draw.io/mcp* — /carousel/* needs
+# its own route or requests 522 against a nonexistent origin.
 routes = [
-  { pattern = "mcp.draw.io/mcp*", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/carousel/*", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/.well-known/*", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/demo/*", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/health", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/favicon.ico", zone_name = "draw.io" },
-  { pattern = "mcp.draw.io/favicon.png", zone_name = "draw.io" }
+  { pattern = "mcp.alfameg.org/mcp*", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/carousel/*", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/.well-known/*", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/demo/*", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/health", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/favicon.ico", zone_name = "alfameg.org" },
+  { pattern = "mcp.alfameg.org/favicon.png", zone_name = "alfameg.org" }
 ]
-
-# OpenAI plugin-directory domain verification token, served verbatim at
-# /.well-known/openai-apps-challenge. The portal generates it per plugin and
-# fetches it from there; it is public by design, not a secret, so it lives here
-# rather than in `wrangler secret` — a redeploy from a fresh checkout keeps the
-# domain verified. Unset = the path 404s.
-[vars]
-OPENAI_APPS_CHALLENGE = "1RMejSOHTziuX6-KVs-f0s2jd-Gqdb52E4PACeZ4Res"
 
 [build]
 command = "node src/build-html.js"
@@ -35,11 +26,6 @@ command = "node src/build-html.js"
 [assets]
 directory = "./public"
 
-# One object per MCP session, holding only the "client fetched the app
-# resource" flag, and only reached by clients that didn't declare the UI
-# capability. /mcp itself is served statelessly by the Worker (see worker.js).
-# The class name dates from when these objects held the sessions; keeping it
-# avoids a migration.
 [[durable_objects.bindings]]
 name = "MCP_SESSION_MANAGER"
 class_name = "MCPSessionManager"
@@ -48,6 +34,8 @@ class_name = "MCPSessionManager"
 # No new migrations needed - MCPSessionManager already exists
 [[migrations]]
 tag = "v3"
+new_sqlite_classes = ["MCPSessionManager"]
+#new_classes = ["MCPSessionManager"]
 
 [env.staging]
 name = "drawio-mcp-app-staging"
@@ -60,9 +48,24 @@ workers_dev = true
 name = "MCP_SESSION_MANAGER"
 class_name = "MCPSessionManager"
 
-[[env.staging.migrations]]
-tag = "v1"
-new_classes = ["MCPSessionManager"]
+#[exports.MCPSessionManager]
+#type = "durable-object"
+#storage = "sqlite"
+
+#[[env.staging.migrations]]
+#tag = "v1"
+#new_classes = ["MCPSessionManager"]
 
 [env.staging.assets]
 directory = "./public"
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
