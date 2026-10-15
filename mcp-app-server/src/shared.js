@@ -1528,6 +1528,122 @@ function commitDiagramXml(xml)
 
   currentXml = out;
   drawioEditUrl = generateDrawioEditUrl(out);
+  scheduleModelContext(xml);
+}
+
+// --- The diagram as shown, for the model ---
+//
+// The model only has the arguments it sent. When the viewer shows something
+// else, the model gets the diagram as shown, so a follow-up edits that instead
+// of redrawing from its own input: Mermaid converted to draw.io XML, a layout
+// or routing pass, the user's layout toggle (and the user's own edits, once
+// the viewer has an editor). Plain XML shown as sent isn't repeated. Once
+// sent, every later change is sent too, so the model's copy stays current;
+// the host keeps only the last update and passes it on with the next message.
+
+// Above this size the XML isn't sent: it would crowd the model's context.
+var MODEL_CONTEXT_MAX_CHARS = 60000;
+var modelContextSent = false;
+var routingApplied = false;
+var modelContextTimer = null;
+
+/**
+ * The text the model gets: what the diagram is and how to change it, then
+ * the flat draw.io XML as shown (for Mermaid, the converted cells, not the
+ * wrapper "Open in draw.io" uses). Returns null when the model already has
+ * the diagram (plain XML without a pass, nothing sent before) or the XML is
+ * too large.
+ */
+function modelContextText(xml, mermaidText, layoutState, routed, alreadySent, maxChars)
+{
+  var laidOut = (layoutState === 'vertical' || layoutState === 'horizontal');
+
+  if (xml == null || xml.length > maxChars ||
+      (mermaidText == null && !laidOut && !routed && !alreadySent))
+  {
+    return null;
+  }
+
+  var what = (mermaidText != null) ? 'your Mermaid diagram converted to draw.io XML' : 'draw.io XML';
+
+  if (laidOut)
+  {
+    what += ', laid out ' + ((layoutState === 'horizontal') ? 'left to right' : 'top to bottom');
+  }
+
+  if (routed)
+  {
+    what += ', with the connectors routed around the shapes';
+  }
+
+  var how = 'To change it, start from this XML and pass it to create_diagram as xml, without postLayout or routing so the positions stay.';
+
+  if (mermaidText != null)
+  {
+    how = 'Changes Mermaid can express can still be made in the Mermaid source. For others, such as positions or the style of single shapes, ' +
+      'start from this XML and pass it to create_diagram as xml, without postLayout or routing so the positions stay.';
+  }
+
+  return 'The draw.io diagram as the user sees it now (' + what + '). ' + how + '\\n\\n' + xml;
+}
+
+// Coalesces the commits of one render (the diagram, then its layout pass).
+// The layout and routing state is taken with the XML: the first commit of a
+// render comes before the layout state is set, and describes the XML before
+// the pass.
+function scheduleModelContext(xml)
+{
+  var mermaidText = currentMermaidText;
+  var layoutState = currentLayoutState;
+  var routed = routingApplied;
+
+  if (modelContextTimer != null)
+  {
+    clearTimeout(modelContextTimer);
+  }
+
+  modelContextTimer = setTimeout(function()
+  {
+    modelContextTimer = null;
+    sendModelContext(xml, mermaidText, layoutState, routed);
+  }, 500);
+}
+
+function sendModelContext(xml, mermaidText, layoutState, routed)
+{
+  var text = modelContextText(xml, mermaidText, layoutState, routed,
+    modelContextSent, MODEL_CONTEXT_MAX_CHARS);
+
+  if (text == null)
+  {
+    console.log('[model-context] not sent', xml != null ? xml.length : 0);
+    return;
+  }
+
+  var caps = app.getHostCapabilities();
+
+  if (caps != null && caps.updateModelContext != null)
+  {
+    modelContextSent = true;
+    app.updateModelContext({ content: [{ type: 'text', text: text }] }).then(function()
+    {
+      console.log('[model-context] updated', text.length);
+    }, function(e)
+    {
+      console.log('[model-context] update failed', e && e.message);
+    });
+  }
+  // ChatGPT's own channel, for when it doesn't declare the MCP Apps one.
+  else if (window.openai != null && typeof window.openai.setWidgetState === 'function')
+  {
+    modelContextSent = true;
+    window.openai.setWidgetState({ modelContent: text });
+    console.log('[model-context] widget state', text.length);
+  }
+  else
+  {
+    console.log('[model-context] no channel', JSON.stringify(caps));
+  }
 }
 
 /**
@@ -2005,6 +2121,8 @@ function runRoutingPass(graph, onComplete)
       {
         fadeInAllEdgesAfterMorph(graph);
       });
+
+      routingApplied = true;
 
       try
       {
@@ -4258,6 +4376,8 @@ function endStreaming()
   originalCellGeometries = null;
   originalCellStyles = null;
   currentLayoutState = 'none';
+  routingApplied = false;
+  modelContextSent = false;
   if (layoutBtn != null) layoutBtn.style.display = 'none';
   dblclickZoomedIn = false;
   updateZoomFitButtonUi();

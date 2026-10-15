@@ -113,6 +113,15 @@ Every XML diagram passes through `normalizeDiagram` (`shared/normalize-model.js`
 
 Doing it here rather than inside the layout keeps `postLayout` free of hierarchy side effects, and the corrected diagram is what the viewer renders, what "Open in draw.io" exports, and what the fallback URL carries. The implementation is `MxGraph.normalizeModel` in `shared/mx-model.js` — a port of drawio-dev's `Graph.normalizeModel`, i.e. the desktop CLI's `--normalize` — driven over the XML by `shared/mx-xml.js`; idempotent, and it rewrites nothing else.
 
+## The diagram as shown, for the model
+
+The model only has the arguments it sent, but the viewer can show something else: Mermaid converted to draw.io XML, an ELK layout or libavoid routing pass, the user's layout toggle. Every change to what is shown goes through `commitDiagramXml`, which schedules `sendModelContext` (500 ms, so a render and its layout pass coalesce; the layout and routing state is taken with the XML, since a render's first commit comes before the layout state is set). `modelContextText` writes what the diagram is and how to change it (start from this XML, pass it as `xml` without `postLayout` / `routing` so the positions stay; for Mermaid, simple changes can stay in the Mermaid source), followed by the flat XML as shown — for Mermaid the converted cells, not the `wrapGroup` wrapper "Open in draw.io" uses.
+
+- **When:** plain XML shown as sent isn't repeated. Mermaid and any pass are sent, and once a diagram has been sent, every later change is (so the toggle back to "as authored" updates the model too). Above `MODEL_CONTEXT_MAX_CHARS` (60,000) nothing is sent.
+- **How:** `app.updateModelContext` (`ui/update-model-context`) when the host declares the `updateModelContext` capability. The host keeps only the last update and passes it on with the user's next message. Otherwise, in ChatGPT, `window.openai.setWidgetState({ modelContent })`. `[model-context]` console lines say which channel was used, or that there was none.
+- **Nothing reaches draw.io:** the XML goes from the iframe to the host's conversation, so the privacy page doesn't change.
+- `test/model-context.test.js` runs `modelContextText` from the template source.
+
 ## Viewer toolbar
 
 **Labels.** "Open in draw.io" and "Copy" carry text labels; the other buttons are 30 px icons. A label never wraps (`white-space: nowrap`, an ellipsis if it is ever squeezed): `fitToolbarLabels` puts the toolbar in `compact` mode, icons only and every button square, whenever the labels can't be shown whole. It re-measures with the labels shown when the toolbar's width changes (`ResizeObserver`), when a button is shown or hidden, and when a label changes ("Copied!") (`MutationObserver`). The icon buttons never shrink (`flex-shrink: 0`), so the labels are what gives way.
