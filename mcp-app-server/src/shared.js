@@ -400,6 +400,9 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         <span id="copy-xml-label">Copy</span>
       </button>
+      <button id="download-btn" class="icon-only" style="display:none" title="Download as a draw.io file" aria-label="Download">
+        <svg viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg>
+      </button>
       <button id="fullscreen-btn" class="icon-only" title="Toggle fullscreen" aria-label="Toggle fullscreen">
         <svg id="fs-icon-enter" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M120-120v-320h80v184l504-504H520v-80h320v320h-80v-184L256-200h184v80H120Z"/></svg>
         <svg id="fs-icon-exit" viewBox="0 -960 960 960" aria-hidden="true" style="display:none"><path fill="currentColor" stroke="none" d="m136-80-56-56 264-264H160v-80h320v320h-80v-184L136-80Zm344-400v-320h80v184l264-264 56 56-264 264h184v80H480Z"/></svg>
@@ -1061,7 +1064,8 @@ const mermaidPreviewEl = document.getElementById("mermaid-preview");
 const openDrawioBtn  = document.getElementById("open-drawio");
 const fullscreenBtn  = document.getElementById("fullscreen-btn");
 const copyXmlBtn     = document.getElementById("copy-xml-btn");
-const layoutBtn      = document.getElementById("layout-btn");
+const downloadBtn    = document.getElementById("download-btn");
+const layoutBtn     = document.getElementById("layout-btn");
 var drawioEditUrl = null;
 var currentXml = null;
 // Mermaid source backing the current diagram (null for plain-XML diagrams).
@@ -1393,6 +1397,24 @@ function generateDrawioEditUrl(xml)
   var createObj = { type: "xml", compressed: true, data: base64, effect: "pop" };
 
   return "https://app.diagrams.net/?pv=0&grid=0#create=" + encodeURIComponent(JSON.stringify(createObj));
+}
+
+// The ui/download-file request behind the Download button: the diagram the
+// viewer shows (currentXml, so a Mermaid diagram keeps its source) as an
+// uncompressed .drawio file. An <mxGraphModel> is wrapped in the
+// <mxfile><diagram> a .drawio file has; an <mxfile> the model sent is
+// already one.
+function drawioFileRequest(xml)
+{
+  var file = xml;
+
+  if (xml.trim().indexOf("<mxfile") !== 0)
+  {
+    file = '<mxfile><diagram name="Page-1" id="page-1">' + xml + "</diagram></mxfile>";
+  }
+
+  return { contents: [{ type: "resource", resource:
+    { uri: "file:///diagram.drawio", mimeType: "application/vnd.jgraph.mxfile", text: file } }] };
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -6173,6 +6195,22 @@ copyXmlBtn.addEventListener("click", function()
   }
 });
 
+// The sandbox can't download by itself (no allow-downloads), so the host
+// saves the file, usually after asking the user. Shown only by hosts that
+// declare downloadFile (see app.connect below).
+downloadBtn.addEventListener("click", function()
+{
+  if (!currentXml) return;
+
+  app.downloadFile(drawioFileRequest(currentXml)).then(function(result)
+  {
+    console.log('[download] result', JSON.stringify(result));
+  }, function(e)
+  {
+    console.log('[download] failed', e && e.message);
+  });
+});
+
 fullscreenBtn.addEventListener("click", function()
 {
   // Toggle: if we're already fullscreen, ask the host to put us back
@@ -6335,6 +6373,15 @@ app.connect().then(function()
 {
   // Pick up the initial displayMode + safeAreaInsets after handshake.
   applyDisplayModeLayout();
+
+  var caps = app.getHostCapabilities();
+
+  console.log('[download] host capabilities', JSON.stringify(caps));
+
+  if (caps != null && caps.downloadFile != null)
+  {
+    downloadBtn.style.display = '';
+  }
 });
     </script>
   </body>
