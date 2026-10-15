@@ -23,7 +23,7 @@ Most subdirectories have their own `AGENTS.md` with implementation details. Ever
 
 ### `create_diagram`
 
-- **Input**: `{ xml: string }` - draw.io XML in mxGraphModel format
+- **Input**: `{ xml?: string, mermaid?: string, postLayout?: "elk", direction?: "vertical" | "horizontal", routing?: "libavoid" }` - exactly one of `xml` (draw.io XML in mxGraphModel format) or `mermaid` (28 diagram types, converted to draw.io natively); `direction` and `routing` apply to XML only
 - **Output**: Interactive diagram rendered inline via the draw.io viewer library
 - **Features**: Zoom, pan, layers, fullscreen, "Open in draw.io" button
 - **Clients without an MCP Apps UI** (plain MCP clients — Codex CLI, terminal agents, scripts) get an extra text block with an `app.diagrams.net` URL (`#R` for XML, `#create=` for Mermaid), since nothing would render the diagram for them otherwise. Detected from the client's declared `io.modelcontextprotocol/ui` capability, plus whether it ever fetched the app resource
