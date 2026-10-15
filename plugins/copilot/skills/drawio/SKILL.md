@@ -1,13 +1,13 @@
 ---
 name: drawio
-description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF. Exception: in a chat panel that shows diagrams inline (VS Code or Cursor chat, Claude.ai, ChatGPT) where the draw.io MCP server's create_diagram tool is available, call that tool instead, unless the user asks for a file or an export.
+description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF. Exception: in a chat that shows diagrams inline (VS Code's or Cursor's own chat, Claude.ai, ChatGPT) where the draw.io MCP server's create_diagram tool is available, call that tool instead, unless the user asks for a file or an export. Claude Code, Codex and Copilot CLI, also in their VS Code and JetBrains extensions, don't show diagrams inline: use this skill there.
 ---
 
 # Draw.io Diagram Skill
 
 Generate draw.io diagrams as native `.drawio` files. Author each diagram either as **Mermaid** (concise text that the draw.io desktop CLI converts and lays out for you) or as **draw.io XML** directly. Optionally auto-layout XML-authored diagrams with **ELK**, export to PNG/SVG/PDF with the diagram XML embedded (so the exported file stays editable in draw.io), or generate a browser URL that opens the diagram directly in the draw.io editor.
 
-**Inline viewer first.** This skill writes files and opens them with a shell command. If the draw.io MCP server's `create_diagram` tool is available in a chat panel that shows diagrams inline (VS Code or Cursor chat, Claude.ai, ChatGPT), and the user hasn't asked for a `.drawio` file, an export or a URL, call `create_diagram` instead: the diagram appears in the conversation, with no file and no shell command.
+**Inline viewer first.** This skill writes files and opens them with a shell command. If the draw.io MCP server's `create_diagram` tool is available in a chat that shows diagrams inline (VS Code's or Cursor's own chat, Claude.ai, ChatGPT), and the user hasn't asked for a `.drawio` file, an export or a URL, call `create_diagram` instead: the diagram appears in the conversation, with no file and no shell command. Claude Code, Codex and Copilot CLI don't show diagrams inline, not even in their VS Code or JetBrains extensions: there `create_diagram` only returns a link, so use this skill.
 
 ## Authoring: Mermaid or XML?
 
@@ -362,6 +362,14 @@ Key flags:
 - `--disable-gpu`: skip GPU initialisation — add it when a command dies with `GPU process isn't usable` (Windows remote-desktop sessions, VMs, CI runners); no convert, layout, or export path needs the GPU
 
 ### Opening the result
+
+**Inside VS Code** (also Cursor or Windsurf, with their `cursor` / `windsurf` commands in place of `code`), open the file in an editor tab, next to the chat: with the [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio) extension installed, VS Code shows `.drawio`, `.drawio.svg` and `.drawio.png` files as editable diagrams. One command checks for the extension and otherwise falls back to the platform's command below (`open` on macOS):
+
+```bash
+code --list-extensions 2>/dev/null | grep -qi '^hediet.vscode-drawio$' && code <file> || open <file>
+```
+
+PDFs and `url` mode always use the platform's command:
 
 | Environment | Command |
 |-------------|---------|

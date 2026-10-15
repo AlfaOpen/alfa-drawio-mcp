@@ -56,6 +56,14 @@ The Copilot marketplace manifest lives at
 and points at this directory (`./plugins/copilot`); the plugin's own manifest is
 [`plugin.json`](plugin.json).
 
+### Updating
+
+Copilot keeps the version you installed until you update it:
+
+```bash
+copilot plugin update drawio
+```
+
 ### Local development
 
 To install straight from a local clone (e.g. while iterating on the skill), point

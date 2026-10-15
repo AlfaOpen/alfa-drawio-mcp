@@ -32,6 +32,15 @@ Inside Claude Code, add this repository as a plugin marketplace, then install:
 
 The marketplace manifest lives at [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) at the repo root and points at this directory.
 
+### Updating
+
+Claude Code keeps the version you installed until you update it. Refresh the marketplace, update the plugin, then restart Claude Code:
+
+```bash
+claude plugin marketplace update drawio
+claude plugin update drawio@drawio
+```
+
 ### Local development
 
 To load the plugin directly from a local clone (e.g. while iterating on the skill):
